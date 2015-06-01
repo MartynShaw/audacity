@@ -196,17 +196,14 @@ wxString ExportPlugin::GetMask(int index)
 
    wxString mask = GetDescription(index) + wxT("|");
 
-   // Build the mask, but cater to the Mac FileDialog and put the default
-   // extension at the end of the mask.
+   // Build the mask
    wxString ext = GetExtension(index);
    wxArrayString exts = GetExtensions(index);
    for (size_t i = 0; i < exts.GetCount(); i++) {
-      if (ext != exts[i]) {
-         mask += wxT("*.") + exts[i] + wxT(";");
-      }
+      mask += wxT("*.") + exts[i] + wxT(";");
    }
 
-   return mask + wxT("*.") + ext;
+   return mask;
 }
 
 int ExportPlugin::GetMaxChannels(int index)
@@ -546,7 +543,6 @@ bool Exporter::GetFilename()
 
    mFilename.SetPath(gPrefs->Read(wxT("/Export/Path"), ::wxGetCwd()));
    mFilename.SetName(mProject->GetName());
-
    while (true) {
 
       FileDialog fd(mProject,
@@ -554,7 +550,7 @@ bool Exporter::GetFilename()
                     mFilename.GetPath(),
                     mFilename.GetFullName(),
                     maskString,
-                    wxFD_SAVE | wxRESIZE_BORDER);
+                    wxFD_SAVE | wxRESIZE_BORDER | FD_NO_ADD_EXTENSION);
       mDialog = &fd;
 
       fd.SetFilterIndex(mFilterIndex);
@@ -1114,6 +1110,8 @@ ExportMixerDialog::ExportMixerDialog( TrackList *tracks, bool selectedOnly,
       const wxPoint &position, const wxSize& size, long style ) :
    wxDialog( parent, id, title, position, size, style | wxRESIZE_BORDER )
 {
+   SetName(GetTitle());
+
    int numTracks = 0;
    TrackListIterator iter( tracks );
 

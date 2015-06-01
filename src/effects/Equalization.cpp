@@ -18,7 +18,7 @@
 
 
    \class EffectEqualization
-   \brief An Effect.
+   \brief An Effect that modifies volume in different frequency bands.
 
    Performs filtering, using an FFT to do a FIR filter.
    It lets the user draw an arbitrary envelope (using the same
@@ -72,7 +72,6 @@
 #include <wx/string.h>
 #include <wx/textdlg.h>
 #include <wx/ffile.h>
-#include <wx/filedlg.h>
 #include <wx/filefn.h>
 #include <wx/stdpaths.h>
 #include <wx/settings.h>
@@ -98,6 +97,8 @@
 #include "../AllThemeResources.h"
 #include "../WaveTrack.h"
 #include "../float_cast.h"
+
+#include "FileDialog.h"
 
 #include "Equalization.h"
 
@@ -177,8 +178,6 @@ WX_DEFINE_OBJARRAY( EQCurveArray );
 
 BEGIN_EVENT_TABLE(EffectEqualization, wxEvtHandler)
    EVT_SIZE( EffectEqualization::OnSize )
-   EVT_PAINT( EffectEqualization::OnPaint )
-   EVT_ERASE_BACKGROUND( EffectEqualization::OnErase )
 
    EVT_SLIDER( ID_Length, EffectEqualization::OnSliderM )
    EVT_SLIDER( ID_dBMax, EffectEqualization::OnSliderDBMAX )
@@ -216,6 +215,8 @@ EffectEqualization::EffectEqualization()
    mFilterFuncR = new float[windowSize];
    mFilterFuncI = new float[windowSize];
 
+   SetLinearEffectFlag(true);
+
 #ifdef EXPERIMENTAL_EQ_SSE_THREADED
    mEffectEqualization48x=NULL;
 #endif
@@ -251,16 +252,10 @@ EffectEqualization::EffectEqualization()
 
    mCurve = NULL;
    mDirty = false;
+   mDisallowCustom = false;
 
    // Load the EQ curves
    LoadCurves();
-   if (mDisallowCustom)
-   {
-      mCustomBackup.Name = wxT("unnamed");
-      EQCurve &realCustom = mCurves[mCurves.GetCount()-1];
-      wxASSERT(realCustom.Name.IsSameAs(wxT("unnamed")));
-      mCustomBackup.points = realCustom.points;
-   }
 
    // Note: initial curve is set in TransferDataToWindow
 
@@ -885,18 +880,7 @@ bool EffectEqualization::TransferDataToWindow()
    mdBMax = 0;                    // force refresh in TransferDataFromWindow()
 
    // Reload the curve names
-   mCurve->Clear();
-   for (size_t i = 0, cnt = mCurves.GetCount(); i < cnt; i++)
-   {
-      mCurve->Append(mCurves[ i ].Name);
-   }
-   mCurve->SetStringSelection(mCurveName);
-
-   // Allow the control to resize
-   mCurve->SetSizeHints(-1, -1);
-
-   // Set initial curve
-   setCurve( mCurveName );
+   UpdateCurves();
 
    // Set graphic interpolation mode
    mInterpChoice->SetSelection(mInterp);
@@ -1852,6 +1836,23 @@ void EffectEqualization::LayoutEQSliders()
    mUIParent->RefreshRect(wxRect(szrG->GetPosition(), szrGSize));
 }
 
+void EffectEqualization::UpdateCurves()
+{
+   // Reload the curve names
+   mCurve->Clear();
+   for (size_t i = 0, cnt = mCurves.GetCount(); i < cnt; i++)
+   {
+      mCurve->Append(mCurves[ i ].Name);
+   }
+   mCurve->SetStringSelection(mCurveName);
+
+   // Allow the control to resize
+   mCurve->SetSizeHints(-1, -1);
+
+   // Set initial curve
+   setCurve( mCurveName );
+}
+
 void EffectEqualization::UpdateDraw()
 {
    int numPoints = mLogEnvelope->GetNumberOfPoints();
@@ -2325,19 +2326,6 @@ void EffectEqualization::OnErase(wxEraseEvent & WXUNUSED(event))
    // Ignore it
 }
 
-void EffectEqualization::OnPaint(wxPaintEvent & event)
-{
-   wxPaintDC dc(mUIParent);
-
-#if defined(__WXGTK__)
-   dc.SetBackground(wxBrush(wxSystemSettings::GetColour(wxSYS_COLOUR_3DFACE)));
-#endif
-
-   dc.Clear();
-
-   event.Skip();
-}
-
 void EffectEqualization::OnSlider(wxCommandEvent & event)
 {
    wxSlider *s = (wxSlider *)event.GetEventObject();
@@ -2434,6 +2422,12 @@ void EffectEqualization::OnManage(wxCommandEvent & WXUNUSED(event))
 {
    EditCurvesDialog d(mUIParent, this, mCurve->GetSelection());
    d.ShowModal();
+
+   // Reload the curve names
+   UpdateCurves();
+
+   // Allow control to resize
+   mUIParent->Layout();
 }
 
 void EffectEqualization::OnClear(wxCommandEvent & WXUNUSED(event))
@@ -3224,7 +3218,7 @@ void EditCurvesDialog::OnDelete(wxCommandEvent & WXUNUSED(event))
 
 void EditCurvesDialog::OnImport( wxCommandEvent & WXUNUSED(event))
 {
-   wxFileDialog filePicker(this, _("Choose an EQ curve file"), FileNames::DataDir(), wxT(""), _("xml files (*.xml;*.XML)|*.xml;*.XML"));
+   FileDialog filePicker(this, _("Choose an EQ curve file"), FileNames::DataDir(), wxT(""), _("xml files (*.xml;*.XML)|*.xml;*.XML"));
    wxString fileName = wxT("");
    if( filePicker.ShowModal() == wxID_CANCEL)
       return;
@@ -3244,7 +3238,7 @@ void EditCurvesDialog::OnImport( wxCommandEvent & WXUNUSED(event))
 
 void EditCurvesDialog::OnExport( wxCommandEvent & WXUNUSED(event))
 {
-   wxFileDialog filePicker(this, _("Export EQ curves as..."), FileNames::DataDir(), wxT(""), wxT("*.XML"), wxFD_SAVE | wxFD_OVERWRITE_PROMPT | wxRESIZE_BORDER);   // wxFD_CHANGE_DIR?
+   FileDialog filePicker(this, _("Export EQ curves as..."), FileNames::DataDir(), wxT(""), wxT("*.XML"), wxFD_SAVE | wxFD_OVERWRITE_PROMPT | wxRESIZE_BORDER);   // wxFD_CHANGE_DIR?
    wxString fileName = wxT("");
    if( filePicker.ShowModal() == wxID_CANCEL)
       return;

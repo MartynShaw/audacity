@@ -144,7 +144,8 @@ class AUDACITY_DLL_API Effect : public wxEvtHandler,
    // EffectHostInterface implementation
 
    virtual double GetDefaultDuration();
-   virtual double GetDuration(bool *isSelection = NULL);
+   virtual double GetDuration();
+   virtual wxString GetDurationFormat();
    virtual void SetDuration(double duration);
 
    virtual bool Apply();
@@ -315,6 +316,20 @@ protected:
    void SetTimeWarper(TimeWarper *warper);
    TimeWarper *GetTimeWarper();
 
+   // Previewing linear effect can be optimised by pre-mixing. However this
+   // should not be used for non-linear effects such as dynamic processors
+   // To allow pre-mixing before Preview, set linearEffectFlag to true.
+   void SetLinearEffectFlag(bool linearEffectFlag);
+
+   // Most effects only need to preview a short selection. However some
+   // (such as fade effects) need to know the full selection length.
+   void SetPreviewFullSelectionFlag(bool previewDurationFlag);
+
+   // Most effects only require selected tracks to be copied for Preview.
+   // If IncludeNotSelectedPreviewTracks(true), then non-linear effects have
+   // preview copies of all wave tracks.
+   void IncludeNotSelectedPreviewTracks(bool includeNotSelected);
+
    // Use these two methods to copy the input tracks to mOutputTracks, if
    // doing the processing on them, and replacing the originals only on success (and not cancel).
    void CopyInputTracks(int trackType = Track::Wave);
@@ -387,7 +402,15 @@ private:
 
    bool mIsBatch;
 
+   bool mIsLinearEffect;
+   bool mPreviewWithNotSelected;
+   bool mPreviewFullSelection;
+
+   bool mIsSelection;
    double mDuration;
+   wxString mDurationFormat;
+
+   bool mIsPreview;
 
    bool mUIDebug;
 
@@ -485,6 +508,7 @@ public:
    bool Initialize();
 
 private:
+   void OnInitDialog(wxInitDialogEvent & evt);
    void OnErase(wxEraseEvent & evt);
    void OnPaint(wxPaintEvent & evt);
    void OnClose(wxCloseEvent & evt);

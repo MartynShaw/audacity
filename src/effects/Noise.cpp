@@ -57,6 +57,8 @@ EffectNoise::EffectNoise()
    mType = DEF_Type;
    mAmp = DEF_Amp;
 
+   SetLinearEffectFlag(true);
+
    y = z = buf0 = buf1 = buf2 = buf3 = buf4 = buf5 = buf6 = 0;
 }
 
@@ -218,24 +220,21 @@ void EffectNoise::PopulateOrExchange(ShuttleGui & S)
    {
       S.AddChoice(_("Noise type:"), wxT(""), &typeChoices)->SetValidator(wxGenericValidator(&mType));
 
-      FloatingPointValidator<double> vldAmp(1, &mAmp, NUM_VAL_NO_TRAILING_ZEROES);
+      FloatingPointValidator<double> vldAmp(6, &mAmp, NUM_VAL_NO_TRAILING_ZEROES);
       vldAmp.SetRange(MIN_Amp, MAX_Amp);
       S.AddTextBox(_("Amplitude (0-1):"), wxT(""), 12)->SetValidator(vldAmp);
-
-      bool isSelection;
-      double duration = GetDuration(&isSelection);
 
       S.AddPrompt(_("Duration:"));
       mNoiseDurationT = new
          NumericTextCtrl(NumericConverter::TIME,
-                           S.GetParent(),
-                           wxID_ANY,
-                           isSelection ? _("hh:mm:ss + samples") : _("hh:mm:ss + milliseconds"),
-                           duration,
-                           mProjectRate,
-                           wxDefaultPosition,
-                           wxDefaultSize,
-                           true);
+                         S.GetParent(),
+                         wxID_ANY,
+                         GetDurationFormat(),
+                         GetDuration(),
+                         mProjectRate,
+                         wxDefaultPosition,
+                         wxDefaultSize,
+                         true);
       mNoiseDurationT->SetName(_("Duration"));
       mNoiseDurationT->EnableMenu();
       S.AddWindow(mNoiseDurationT, wxALIGN_LEFT | wxALIGN_CENTER_VERTICAL | wxALL);

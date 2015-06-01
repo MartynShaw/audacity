@@ -143,8 +143,8 @@ audio tracks.
 *//*******************************************************************/
 
 #include "Audacity.h"
-#include "AudacityApp.h"
 #include "TrackArtist.h"
+#include "AudacityApp.h"
 #include "float_cast.h"
 
 #include <math.h>
@@ -436,6 +436,12 @@ void TrackArtist::DrawTrack(const Track * t,
          DrawSpectrum(wt, dc, r, viewInfo, false, false);
          break;
       case WaveTrack::SpectrumLogDisplay:
+         DrawSpectrum(wt, dc, r, viewInfo, false, true);
+         break;
+      case WaveTrack::SpectralSelectionDisplay:
+         DrawSpectrum(wt, dc, r, viewInfo, false, false);
+         break;
+      case WaveTrack::SpectralSelectionLogDisplay:
          DrawSpectrum(wt, dc, r, viewInfo, false, true);
          break;
       case WaveTrack::PitchDisplay:
@@ -763,7 +769,10 @@ void TrackArtist::UpdateVRuler(Track *t, wxRect & r)
          vruler->SetLabelEdges(true);
          vruler->SetLog(false);
       }
-      else if (display == WaveTrack::SpectrumDisplay) {
+      else if ( 
+         (display == WaveTrack::SpectrumDisplay) || 
+         (display == WaveTrack::SpectralSelectionDisplay) )
+      {
          // Spectrum
 
          if (r.height < 60)
@@ -806,7 +815,10 @@ void TrackArtist::UpdateVRuler(Track *t, wxRect & r)
          }
          vruler->SetLog(false);
       }
-      else if (display == WaveTrack::SpectrumLogDisplay) {
+      else if ( 
+         (display == WaveTrack::SpectrumLogDisplay) || 
+         (display == WaveTrack::SpectralSelectionLogDisplay) )
+      {
          // SpectrumLog
 
          if (r.height < 10)
@@ -1737,26 +1749,21 @@ void TrackArtist::DrawSpectrum(WaveTrack *track,
          viewInfo->selectedRegion.t0(), viewInfo->selectedRegion.t1(), 
          viewInfo->h, viewInfo->zoom);
 
-   if(!viewInfo->bUpdateTrackIndicator && viewInfo->bIsPlaying) {
-      // BG: Draw (undecorated) waveform instead of spectrum
-      DrawWaveform(track, dc, r, viewInfo, false, false, false, false, false);
-      /*
-      // BG: uncomment to draw grey instead of spectrum
-      dc.SetBrush(unselectedBrush);
-      dc.SetPen(unselectedPen);
-      dc.DrawRectangle(r);
-      */
-      return;
-   }
-
+   WaveTrackCache cache(track);
    for (WaveClipList::compatibility_iterator it = track->GetClipIterator(); it; it = it->GetNext()) {
-      DrawClipSpectrum(track, it->GetData(), dc, r, viewInfo, autocorrelation, logF);
+      DrawClipSpectrum(cache, it->GetData(), dc, r, viewInfo, autocorrelation, logF);
    }
 }
 
-static float sumFreqValues(float *freq, int x0, float bin0, float bin1)
+inline
+static float sumFreqValues(
+   const float *freq, int x, int half, float bin0, float bin1,
+   bool autocorrelation, int range, int gain)
 {
+   const int x0 = x * half;
    float value;
+#if 0
+   // Averaging method
    if (int(bin1) == int(bin0)) {
       value = freq[x0+int(bin0)];
    } else {
@@ -1768,36 +1775,55 @@ static float sumFreqValues(float *freq, int x0, float bin0, float bin1)
          value += freq[x0 + int(bin0)];
          bin0 += 1.0;
       }
+      // Do not reference past end of freq array.
+      if (int(bin1) >= half) {
+         bin1 -= 1.0;
+      }
+
       value += freq[x0 + int(bin1)] * (bin1 - int(bin1));
       value /= binwidth;
    }
+#else
+   // Maximum method, and no apportionment of any single bins over multiple pixel rows
+   // See Bug971
+   int bin = floor(0.5 + bin0);
+   const int limitBin = floor(0.5 + bin1);
+   value = freq[x0 + bin];
+   while (++bin < limitBin)
+      value = std::max(value, freq[x0 + bin]);
+#endif
+   if (!autocorrelation) {
+      // Last step converts dB to a 0.0-1.0 range
+      value = (value + range + gain) / (double)range;
+   }
+   value = std::min(1.0f, std::max(0.0f, value));
    return value;
 }
 
 
 // Helper function to decide on which color set to use.
 // dashCount counts both dashes and the spaces between them. 
+inline
 AColor::ColorGradientChoice ChooseColorSet( float bin0, float bin1, float selBinLo, 
-   float selBinCenter, float selBinHi, int dashCount )
+   float selBinCenter, float selBinHi, int dashCount, bool isSpectral )
 {
-   if ( (selBinCenter >= 0) && (bin0 <= selBinCenter) && (selBinCenter < bin1) )
+   if (!isSpectral)
+      return  AColor::ColorGradientTimeSelected;
+   if ((selBinCenter >= 0) && (bin0 <= selBinCenter) &&
+       (selBinCenter < bin1))
       return AColor::ColorGradientEdge;
-   else if (
-      (0 == dashCount % 2)    &&
-      (((selBinLo >= 0) && (bin0 <= selBinLo) && ( selBinLo < bin1))  ||
-       ((selBinHi >= 0) && (bin0 <= selBinHi) && ( selBinHi < bin1)) ) )
+   if ((0 == dashCount % 2) &&
+       (((selBinLo >= 0) && (bin0 <= selBinLo) && ( selBinLo < bin1))  ||
+        ((selBinHi >= 0) && (bin0 <= selBinHi) && ( selBinHi < bin1))))
       return AColor::ColorGradientEdge;
-   else if (
-      (selBinLo < 0 || selBinLo < bin1) && 
-      (selBinHi < 0 || selBinHi > bin0) )
+   if ((selBinLo < 0 || selBinLo < bin1) && (selBinHi < 0 || selBinHi > bin0))
       return  AColor::ColorGradientTimeAndFrequencySelected;
-   else
+
       return  AColor::ColorGradientTimeSelected;
 }
 
 
-
-void TrackArtist::DrawClipSpectrum(WaveTrack *track,
+void TrackArtist::DrawClipSpectrum(WaveTrackCache &cache,
                                    WaveClip *clip,
                                    wxDC & dc,
                                    const wxRect & r,
@@ -1805,6 +1831,8 @@ void TrackArtist::DrawClipSpectrum(WaveTrack *track,
                                    bool autocorrelation,
                                    bool logF)
 {
+   const WaveTrack *const track = cache.GetTrack();
+
    enum { MONOCHROME_LINE = 230, COLORED_LINE  = 0 };
    enum { DASH_LENGTH = 10 /* pixels */ };
 
@@ -1932,12 +1960,12 @@ void TrackArtist::DrawClipSpectrum(WaveTrack *track,
    if (!image)return;
    unsigned char *data = image->GetData();
 
-   int windowSize = GetSpectrumWindowSize();
-   int half = windowSize/2;
+   int windowSize = GetSpectrumWindowSize(!autocorrelation);
+   const int half = windowSize / 2;
    float *freq = new float[mid.width * half];
    sampleCount *where = new sampleCount[mid.width+1];
 
-   bool updated = clip->GetSpectrogram(freq, where, mid.width,
+   bool updated = clip->GetSpectrogram(cache, freq, where, mid.width,
                               t0, pps, autocorrelation);
    int ifreq = lrint(rate/2);
 
@@ -2079,10 +2107,12 @@ void TrackArtist::DrawClipSpectrum(WaveTrack *track,
 
             AColor::ColorGradientChoice selected =
                AColor::ColorGradientUnselected;
-            // If we are in the time selected range, then we may use a differnt color set.
+            // If we are in the time selected range, then we may use a different color set.
             if (ssel0 <= w0 && w1 < ssel1)
             {
-               selected = ChooseColorSet( bin0, bin1, selBinLo, selBinCenter, selBinHi, x/DASH_LENGTH );
+               bool isSpectral = ((track->GetDisplay() == WaveTrack::SpectralSelectionDisplay) ||
+                                  (track->GetDisplay() == WaveTrack::SpectralSelectionLogDisplay));
+               selected = ChooseColorSet( bin0, bin1, selBinLo, selBinCenter, selBinHi, x/DASH_LENGTH, isSpectral );
             }
 
 
@@ -2090,37 +2120,8 @@ void TrackArtist::DrawClipSpectrum(WaveTrack *track,
             float value;
 
             if(!usePxCache) {
-               if (int (bin1) == int (bin0))
-                  value = freq[half * x + int (bin0)];
-               else {
-                  float binwidth= bin1 - bin0;
-                  value = freq[half * x + int (bin0)] * (1.f - bin0 + (int)bin0);
-
-                  bin0 = 1 + int (bin0);
-                  while (bin0 < int (bin1)) {
-                     value += freq[half * x + int (bin0)];
-                     bin0 += 1.0;
-                  }
-
-                  // Do not reference past end of freq array.
-                  if (int(bin1) >= half) {
-                     bin1 -= 1.0;
-                  }
-
-                  value += freq[half * x + int (bin1)] * (bin1 - int (bin1));
-
-                  value /= binwidth;
-               }
-
-               if (!autocorrelation) {
-                  // Last step converts dB to a 0.0-1.0 range
-                  value = (value + range + gain) / (double)range;
-               }
-
-               if (value > 1.0)
-                  value = float(1.0);
-               if (value < 0.0)
-                  value = float(0.0);
+               value = sumFreqValues(freq, x, half, bin0, bin1,
+                  autocorrelation, range, gain);
                clip->mSpecPxCache->values[x * mid.height + yy] = value;
             }
             else
@@ -2138,7 +2139,6 @@ void TrackArtist::DrawClipSpectrum(WaveTrack *track,
       {
          unsigned char rv, gv, bv;
          float value;
-         int x0=x*half;
 
 #ifdef EXPERIMENTAL_FIND_NOTES
          int maximas=0;
@@ -2221,10 +2221,12 @@ void TrackArtist::DrawClipSpectrum(WaveTrack *track,
 
             AColor::ColorGradientChoice selected =
                AColor::ColorGradientUnselected;
-            // If we are in the time selected range, then we may use a differnt color set.
+            // If we are in the time selected range, then we may use a different color set.
             if (ssel0 <= w0 && w1 < ssel1)
             {
-               selected = ChooseColorSet( bin0, bin1, selBinLo, selBinCenter, selBinHi, x/DASH_LENGTH );
+               bool isSpectral = ((track->GetDisplay() == WaveTrack::SpectralSelectionDisplay) ||
+                                  (track->GetDisplay() == WaveTrack::SpectralSelectionLogDisplay));
+               selected = ChooseColorSet( bin0, bin1, selBinLo, selBinCenter, selBinHi, x/DASH_LENGTH, isSpectral );
             }
 
             if(!usePxCache) {
@@ -2256,17 +2258,8 @@ void TrackArtist::DrawClipSpectrum(WaveTrack *track,
                      value = minColor;
                } else
 #endif //EXPERIMENTAL_FIND_NOTES
-               {
-                  value=sumFreqValues(freq, x0, bin0, bin1);
-                  if (!autocorrelation) {
-                     // Last step converts dB to a 0.0-1.0 range
-                     value = (value + gain + range) / (double)range;
-                  }
-               }
-               if (value > 1.0)
-                  value = float(1.0);
-               if (value < 0.0)
-                  value = float(0.0);
+                  value=sumFreqValues(freq, x, half, bin0, bin1,
+                     autocorrelation, range, gain);
                clip->mSpecPxCache->values[x * mid.height + yy] = value;
             }
             else
@@ -3037,6 +3030,9 @@ void TrackArtist::UpdatePrefs()
       mLogMinFreq = 1;
 
    mWindowSize = gPrefs->Read(wxT("/Spectrum/FFTSize"), 256);
+#ifdef EXPERIMENTAL_ZERO_PADDED_SPECTROGRAMS
+   mZeroPaddingFactor = gPrefs->Read(wxT("/Spectrum/ZeroPaddingFactor"), 1);
+#endif
    mIsGrayscale = (gPrefs->Read(wxT("/Spectrum/Grayscale"), 0L) != 0);
 
 #ifdef EXPERIMENTAL_FFT_Y_GRID
@@ -3078,9 +3074,14 @@ int TrackArtist::GetSpectrumLogMaxFreq(int deffreq)
    return mLogMaxFreq < 0 ? deffreq : mLogMaxFreq;
 }
 
-int TrackArtist::GetSpectrumWindowSize()
+int TrackArtist::GetSpectrumWindowSize(bool includeZeroPadding)
 {
-   return mWindowSize;
+#ifdef EXPERIMENTAL_ZERO_PADDED_SPECTROGRAMS
+   if (includeZeroPadding)
+      return mWindowSize * mZeroPaddingFactor;
+   else
+#endif
+      return mWindowSize;
 }
 
 #ifdef EXPERIMENTAL_FFT_SKIP_POINTS

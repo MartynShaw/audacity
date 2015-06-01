@@ -105,6 +105,12 @@ EffectToneGen::EffectToneGen(bool isChirp)
    {
       mInterpolations.Add(wxGetTranslation(kInterStrings[i]));
    }
+   // Chirp varies over time so must use selected duration.
+   // TODO: When previewing, calculate only the first 'preview length'.
+   if (isChirp)
+      SetLinearEffectFlag(false);
+   else
+      SetLinearEffectFlag(true);
 }
 
 EffectToneGen::~EffectToneGen()
@@ -392,7 +398,7 @@ void EffectToneGen::PopulateOrExchange(ShuttleGui & S)
          }
          S.EndHorizontalLay();
 
-         S.AddPrompt(_("Amplitude (Hz):"));
+         S.AddPrompt(_("Amplitude (0-1):"));
          S.StartHorizontalLay(wxEXPAND);
          {
             S.StartHorizontalLay(wxLEFT, 50);
@@ -433,20 +439,17 @@ void EffectToneGen::PopulateOrExchange(ShuttleGui & S)
          t->SetValidator(vldAmplitude);
       }
 
-      bool isSelection;
-      double duration = GetDuration(&isSelection);
-
       S.AddPrompt(_("Duration:"));
       mToneDurationT = new
          NumericTextCtrl(NumericConverter::TIME,
-                        S.GetParent(),
-                        wxID_ANY,
-                        isSelection ? _("hh:mm:ss + samples") : _("hh:mm:ss + milliseconds"),
-                        duration,
-                        mProjectRate,
-                        wxDefaultPosition,
-                        wxDefaultSize,
-                        true);
+                         S.GetParent(),
+                         wxID_ANY,
+                         GetDurationFormat(),
+                         GetDuration(),
+                         mProjectRate,
+                         wxDefaultPosition,
+                         wxDefaultSize,
+                         true);
       mToneDurationT->SetName(_("Duration"));
       mToneDurationT->EnableMenu();
       S.AddWindow(mToneDurationT, wxALIGN_LEFT | wxALL);

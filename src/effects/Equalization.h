@@ -150,6 +150,7 @@ private:
    XMLTagHandler *HandleXMLChild(const wxChar *tag);
    void WriteXML(XMLWriter &xmlFile);
 
+   void UpdateCurves();
    void UpdateDraw();
 
    void LayoutEQSliders();
@@ -163,7 +164,6 @@ private:
 
    void OnSize( wxSizeEvent & event );
    void OnErase( wxEraseEvent & event );
-   void OnPaint( wxPaintEvent & event );
    void OnSlider( wxCommandEvent & event );
    void OnInterp( wxCommandEvent & event );
    void OnSliderM( wxCommandEvent & event );
@@ -212,7 +212,6 @@ private:
    double mEQVals[NUMBER_OF_BANDS+1];
 
    EQCurveArray mCurves;
-   EQCurve mCustomBackup;
 
    Envelope *mLogEnvelope;
    Envelope *mLinEnvelope;

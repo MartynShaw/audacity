@@ -32,6 +32,7 @@ greater use in future.
 #include <wx/tglbtn.h>
 #include <wx/timer.h>
 #include <wx/utils.h>
+#include <wx/log.h>
 
 #include "audacity/ConfigInterface.h"
 
@@ -46,6 +47,7 @@ greater use in future.
 #include "../widgets/ProgressDialog.h"
 #include "../ondemand/ODManager.h"
 #include "TimeWarper.h"
+#include "nyquist/Nyquist.h"
 
 #if defined(__WXMAC__)
 #include <wx/mac/private.h>
@@ -88,7 +90,13 @@ Effect::Effect()
    mTracks = NULL;
    mOutputTracks = NULL;
    mOutputTracksType = Track::None;
+   mT0 = 0.0;
+   mT1 = 0.0;
    mDuration = 0.0;
+   mIsPreview = false;
+   mIsLinearEffect = false;
+   mPreviewWithNotSelected = false;
+   mPreviewFullSelection = false;
    mNumTracks = 0;
    mNumGroups = 0;
    mProgress = NULL;
@@ -701,47 +709,19 @@ double Effect::GetDefaultDuration()
    return 30.0;
 }
 
-double Effect::GetDuration(bool *isSelection)
+double Effect::GetDuration()
 {
-   if (mT1 > mT0)
-   {
-      // there is a selection: let's fit in there...
-      // MJS: note that this is just for the TTC and is independent of the track rate
-      // but we do need to make sure we have the right number of samples at the project rate
-      double quantMT0 = QUANTIZED_TIME(mT0, mProjectRate);
-      double quantMT1 = QUANTIZED_TIME(mT1, mProjectRate);
-      mDuration = quantMT1 - quantMT0;
-
-      if (isSelection)
-      {
-         *isSelection = true;
-      }
-
-      return mDuration;
-   }
-
-   if (isSelection)
-   {
-      *isSelection = false;
-   }
-
-   GetPrivateConfig(GetCurrentSettingsGroup(), wxT("LastUsedDuration"), mDuration, 0.0);
-   if (mDuration > 0.0)
-   {
-      return mDuration;
-   }
-
    if (mDuration < 0.0)
    {
       mDuration = 0.0;
    }
 
-   if (GetType() == EffectTypeGenerate)
-   {
-      mDuration = GetDefaultDuration();
-   }
-
    return mDuration;
+}
+
+wxString Effect::GetDurationFormat()
+{
+   return mDurationFormat;
 }
 
 void Effect::SetDuration(double seconds)
@@ -751,12 +731,15 @@ void Effect::SetDuration(double seconds)
       seconds = 0.0;
    }
 
-   if (mDuration != seconds)
+   if (GetType() == EffectTypeGenerate)
    {
       SetPrivateConfig(GetCurrentSettingsGroup(), wxT("LastUsedDuration"), seconds);
    }
 
    mDuration = seconds;
+   mT1 = mT0 + mDuration;
+
+   mIsSelection = false;
 
    return;
 }
@@ -1116,6 +1099,7 @@ wxString Effect::GetPreset(wxWindow * parent, const wxString & parms)
    dlg.Layout();
    dlg.Fit();
    dlg.SetSize(dlg.GetMinSize());
+   dlg.CenterOnParent();
    dlg.SetSelected(parms);
 
    if (dlg.ShowModal())
@@ -1164,9 +1148,33 @@ bool Effect::DoEffect(wxWindow *parent,
    mProjectRate = projectRate;
    mParent = parent;
    mTracks = list;
+   
+   bool isSelection = false;
+
+   mDuration = 0.0;
+
+   if (GetType() == EffectTypeGenerate)
+   {
+      GetPrivateConfig(GetCurrentSettingsGroup(), wxT("LastUsedDuration"), mDuration, GetDefaultDuration());
+   }
+
    mT0 = selectedRegion->t0();
    mT1 = selectedRegion->t1();
-   mDuration = GetDuration();
+   if (mT1 > mT0)
+   {
+      // there is a selection: let's fit in there...
+      // MJS: note that this is just for the TTC and is independent of the track rate
+      // but we do need to make sure we have the right number of samples at the project rate
+      double quantMT0 = QUANTIZED_TIME(mT0, mProjectRate);
+      double quantMT1 = QUANTIZED_TIME(mT1, mProjectRate);
+      mDuration = quantMT1 - quantMT0;
+      mT1 = mT0 + mDuration;
+
+      isSelection = true;
+   }
+
+   mDurationFormat = isSelection ? _("hh:mm:ss + samples") : _("hh:mm:ss + milliseconds");
+
 #ifdef EXPERIMENTAL_SPECTRAL_EDITING
    mF0 = selectedRegion->f0();
    mF1 = selectedRegion->f1();
@@ -1491,6 +1499,11 @@ bool Effect::ProcessPass()
       mInBufPos = NULL;
    }
 
+   if (bGoodResult && GetType() == EffectTypeGenerate)
+   {
+      mT1 = mT0 + mDuration;
+   }
+
    return bGoodResult;
 }
 
@@ -1546,7 +1559,16 @@ bool Effect::ProcessTrack(int count,
    bool isProcessor = GetType() == EffectTypeProcess;
    if (isGenerator)
    {
-      genLength = left->GetRate() * mDuration;
+      double genDur;
+      if (mIsPreview) {
+         gPrefs->Read(wxT("/AudioIO/EffectsPreviewLen"), &genDur, 6.0);
+         genDur = wxMin(mDuration, CalcPreviewInputLength(genDur));
+      }
+      else {
+         genDur = mDuration;
+      }
+
+      genLength = left->GetRate() * genDur;
       delayRemaining = genLength;
       cleared = true;
 
@@ -1738,7 +1760,14 @@ bool Effect::ProcessTrack(int count,
             left->Set((samplePtr) mOutBuffer[0], floatSample, outLeftPos, outputBufferCnt);
             if (right)
             {
-               right->Set((samplePtr) mOutBuffer[1], floatSample, outRightPos, outputBufferCnt);
+               if (chans >= 2)
+               {
+                  right->Set((samplePtr) mOutBuffer[1], floatSample, outRightPos, outputBufferCnt);
+               }
+               else
+               {
+                  right->Set((samplePtr) mOutBuffer[0], floatSample, outRightPos, outputBufferCnt);
+               }
             }
          }
          else if (isGenerator)
@@ -1788,7 +1817,14 @@ bool Effect::ProcessTrack(int count,
          left->Set((samplePtr) mOutBuffer[0], floatSample, outLeftPos, outputBufferCnt);
          if (right)
          {
-            right->Set((samplePtr) mOutBuffer[1], floatSample, outRightPos, outputBufferCnt);
+            if (chans >= 2)
+            {
+               right->Set((samplePtr) mOutBuffer[1], floatSample, outRightPos, outputBufferCnt);
+            }
+            else
+            {
+               right->Set((samplePtr) mOutBuffer[0], floatSample, outRightPos, outputBufferCnt);
+            }
          }
       }
       else if (isGenerator)
@@ -1803,11 +1839,13 @@ bool Effect::ProcessTrack(int count,
 
    if (isGenerator)
    {
+      AudacityProject *p = GetActiveProject();
       StepTimeWarper *warper = new StepTimeWarper(mT0 + genLength, genLength - (mT1 - mT0));
 
       // Transfer the data from the temporary tracks to the actual ones
       genLeft->Flush();
-      left->ClearAndPaste(mT0, mT1, genLeft, true, true, warper);
+      // mT1 gives us the new selection. We want to replace up to GetSel1().
+      left->ClearAndPaste(mT0, p->GetSel1(), genLeft, true, true, warper);
       delete genLeft;
 
       if (genRight)
@@ -1921,6 +1959,22 @@ bool Effect::EnablePreview(bool enable)
 void Effect::EnableDebug(bool enable)
 {
    mUIDebug = enable;
+}
+
+void Effect::SetLinearEffectFlag(bool linearEffectFlag)
+{
+   mIsLinearEffect = linearEffectFlag;
+}
+
+void Effect::SetPreviewFullSelectionFlag(bool previewDurationFlag)
+{
+   mPreviewFullSelection = previewDurationFlag;
+}
+
+
+void Effect::IncludeNotSelectedPreviewTracks(bool includeNotSelected)
+{
+   mPreviewWithNotSelected = includeNotSelected;
 }
 
 bool Effect::TotalProgress(double frac)
@@ -2344,96 +2398,128 @@ bool Effect::IsHidden()
 
 void Effect::Preview(bool dryOnly)
 {
-   if (mNumTracks==0) // nothing to preview
-      return;
+    if (mIsLinearEffect)
+       wxLogDebug(wxT("Linear Effect"));
+    else
+       wxLogDebug(wxT("Non-linear Effect"));
 
-   wxWindow* FocusDialog = wxWindow::FindFocus();
-   if (gAudioIO->IsBusy())
-      return;
-
-   // Mix a few seconds of audio from all of the tracks
-   double previewLen = 6.0;
-   gPrefs->Read(wxT("/AudioIO/EffectsPreviewLen"), &previewLen);
-
-   WaveTrack *mixLeft = NULL;
-   WaveTrack *mixRight = NULL;
-   double rate = mProjectRate;
-   double t0 = mT0;
-   double t1 = t0 + CalcPreviewInputLength(previewLen);
-
-   if (t1 > mT1)
-      t1 = mT1;
-
-   // Generators can run without a selection.
-//   if (!GeneratorPreview() && (t1 <= t0))
-//      return;
-
-   bool success = ::MixAndRender(mTracks, mFactory, rate, floatSample, t0, t1,
-                                 &mixLeft, &mixRight);
-
-   if (!success) {
+   if (mNumTracks == 0) { // nothing to preview
       return;
    }
+
+   if (gAudioIO->IsBusy()) {
+      return;
+   }
+
+   wxWindow *FocusDialog = wxWindow::FindFocus();
+
+   double previewDuration;
+   bool isNyquist = (GetFamily().IsSameAs(NYQUISTEFFECTS_FAMILY))? true : false;
+   bool isGenerator = GetType() == EffectTypeGenerate;
+
+   // Mix a few seconds of audio from all of the tracks
+   double previewLen;
+   gPrefs->Read(wxT("/AudioIO/EffectsPreviewLen"), &previewLen, 6.0);
+
+   double rate = mProjectRate;
+
+   if (isNyquist && isGenerator) {
+      previewDuration = CalcPreviewInputLength(previewLen);
+   }
+   else {
+      previewDuration = wxMin(mDuration, CalcPreviewInputLength(previewLen));
+   }
+
+   double t1 = mT0 + previewDuration;
+
+   if ((t1 > mT1) && !(isNyquist && isGenerator)) {
+      t1 = mT1;
+   }
+
+   if (t1 <= mT0)
+      return;
+
+   bool success = true;
+   WaveTrack *mixLeft = NULL;
+   WaveTrack *mixRight = NULL;
+   double oldT0 = mT0;
+   double oldT1 = mT1;
+   // Most effects should stop at t1.
+   if (!mPreviewFullSelection)
+      mT1 = t1;
 
    // Save the original track list
    TrackList *saveTracks = mTracks;
 
    // Build new tracklist from rendering tracks
    mTracks = new TrackList();
-   mixLeft->SetSelected(true);
-   mixLeft->SetDisplay(WaveTrack::NoDisplay);
-   mTracks->Add(mixLeft);
-   if (mixRight) {
-      mixRight->SetSelected(true);
-      mTracks->Add(mixRight);
+
+   // Linear Effect preview optimised by pre-mixing to one track.
+   // Generators need to generate per track.
+   if (mIsLinearEffect && !isGenerator) {
+      success = ::MixAndRender(saveTracks, mFactory, rate, floatSample, mT0, t1,
+                               &mixLeft, &mixRight);
+      if (!success) {
+         delete mTracks;
+         mTracks = saveTracks;
+         return;
+      }
+
+      mixLeft->InsertSilence(0.0, mT0);
+      mixLeft->SetSelected(true);
+      mixLeft->SetDisplay(WaveTrack::NoDisplay);
+      mTracks->Add(mixLeft);
+      if (mixRight) {
+         mixRight->InsertSilence(0.0, mT0);
+         mixRight->SetSelected(true);
+         mTracks->Add(mixRight);
+      }
+   }
+   else {
+      TrackListOfKindIterator iter(Track::Wave, saveTracks);
+      WaveTrack *src = (WaveTrack *) iter.First();
+      while (src)
+      {
+         WaveTrack *dest;
+         if (src->GetSelected() || mPreviewWithNotSelected) {
+            src->Copy(mT0, t1, (Track **) &dest);
+            dest->InsertSilence(0.0, mT0);
+            dest->SetSelected(src->GetSelected());
+            dest->SetDisplay(WaveTrack::NoDisplay);
+            mTracks->Add(dest);
+         }
+         src = (WaveTrack *) iter.Next();
+      }
    }
 
    // Update track/group counts
    CountWaveTracks();
 
-   // Reset times
-   t0 = mixLeft->GetStartTime();
-   t1 = mixLeft->GetEndTime();
-
-   double t0save = mT0;
-   double t1save = mT1;
-   mT0 = t0;
-   mT1 = t1;
-
    // Apply effect
-
-   bool bSuccess(true);
    if (!dryOnly) {
-      // Effect is already inited; we call Process, End, and then Init
-      // again, so the state is exactly the way it was before Preview
-      // was called.
       mProgress = new ProgressDialog(GetName(),
             _("Preparing preview"),
             pdlgHideCancelButton); // Have only "Stop" button.
-      bSuccess = Process();
+      mIsPreview = true;
+      success = Process();
+      mIsPreview = false;
       delete mProgress;
       mProgress = NULL;
-      End();
-      Init();
    }
 
-   // Restore original selection
-   mT0 = t0save;
-   mT1 = t1save;
-
-   if (bSuccess)
+   if (success)
    {
       WaveTrackArray playbackTracks;
       WaveTrackArray recordingTracks;
-      // Probably not the same tracks post-processing, so can't rely on previous values of mixLeft & mixRight.
-      TrackListOfKindIterator iter(Track::Wave, mTracks);
-      mixLeft = (WaveTrack*)(iter.First());
-      mixRight = (WaveTrack*)(iter.Next());
-      playbackTracks.Add(mixLeft);
-      if (mixRight)
-         playbackTracks.Add(mixRight);
 
-      t1 = wxMin(mixLeft->GetEndTime(), t0 + previewLen);
+      SelectedTrackListOfKindIterator iter(Track::Wave, mTracks);
+      WaveTrack *src = (WaveTrack *) iter.First();
+      while (src) {
+         playbackTracks.Add(src);
+         src = (WaveTrack *) iter.Next();
+      }
+      if (isNyquist && isGenerator)
+         t1 = mT1;
 
 #ifdef EXPERIMENTAL_MIDI_OUT
       NoteTrackArray empty;
@@ -2444,30 +2530,33 @@ void Effect::Preview(bool dryOnly)
 #ifdef EXPERIMENTAL_MIDI_OUT
                                empty,
 #endif
-                               rate, t0, t1);
+                               rate, mT0, t1);
 
       if (token) {
          int previewing = eProgressSuccess;
-
-         mProgress = new ProgressDialog(GetName(),
-                                        _("Previewing"), pdlgHideCancelButton);
+wxLogDebug(wxT("mT0 %.3f   t1 %.3f"),mT0,t1);
+         // The progress dialog must be deleted before stopping the stream
+         // to allow events to flow to the app during StopStream processing.
+         // The progress dialog blocks these events.
+         ProgressDialog *progress =
+            new ProgressDialog(GetName(), _("Previewing"), pdlgHideCancelButton);
 
          while (gAudioIO->IsStreamActive(token) && previewing == eProgressSuccess) {
             ::wxMilliSleep(100);
-            previewing = mProgress->Update(gAudioIO->GetStreamTime() - t0, t1 - t0);
+            previewing = progress->Update(gAudioIO->GetStreamTime() - mT0, t1 - mT0);
          }
+
+         delete progress;
+
          gAudioIO->StopStream();
 
          while (gAudioIO->IsBusy()) {
             ::wxMilliSleep(100);
          }
-
-         delete mProgress;
-         mProgress = NULL;
       }
       else {
          wxMessageBox(_("Error while opening sound device. Please check the playback device settings and the project sample rate."),
-                      _("Error"), wxOK | wxICON_EXCLAMATION, FocusDialog);
+                     _("Error"), wxOK | wxICON_EXCLAMATION, FocusDialog);
       }
    }
 
@@ -2482,6 +2571,16 @@ void Effect::Preview(bool dryOnly)
    delete mTracks;
 
    mTracks = saveTracks;
+   mT0 = oldT0;
+   mT1 = oldT1;
+
+   // Effect is already inited; we call Process, End, and then Init
+   // again, so the state is exactly the way it was before Preview
+   // was called.
+   if (!dryOnly) {
+      End();
+      Init();
+   }
 }
 
 BEGIN_EVENT_TABLE(EffectDialog, wxDialog)
@@ -2511,8 +2610,7 @@ void EffectDialog::Init()
       long buttons = eOkButton;
       if (mType != EffectTypeAnalyze)
       {
-         //JKC I find the cancel button gets in the way of ordinary effects.
-         //buttons |= eCancelButton;
+         buttons |= eCancelButton;
          if (mType == EffectTypeProcess)
          {
             buttons |= ePreviewButton;
@@ -2569,7 +2667,7 @@ void EffectDialog::OnOk(wxCommandEvent & WXUNUSED(evt))
    // just our Effects dialogs.  So, this is a only temporary workaround
    // for legacy effects that disable the OK button.  Hopefully this has
    // been corrected in wx3.
-   if (FindWindowById(wxID_OK)->IsEnabled() && Validate() && TransferDataFromWindow())
+   if (FindWindow(wxID_OK)->IsEnabled() && Validate() && TransferDataFromWindow())
    {
       EndModal(true);
    }
@@ -2604,7 +2702,7 @@ public:
    // wxWindow implementation
    // ============================================================================
 
-   bool AcceptsFocus() const
+   virtual bool AcceptsFocus() const
    {
       return mAcceptsFocus;
    }
@@ -2630,6 +2728,7 @@ private:
 #include "../../images/Effect.h"
 
 BEGIN_EVENT_TABLE(EffectUIHost, wxDialog)
+   EVT_INIT_DIALOG(EffectUIHost::OnInitDialog)
    EVT_ERASE_BACKGROUND(EffectUIHost::OnErase)
    EVT_PAINT(EffectUIHost::OnPaint)
    EVT_CLOSE(EffectUIHost::OnClose)
@@ -2746,7 +2845,24 @@ int EffectUIHost::ShowModal()
    mIsModal = true;
 #endif
 
+#if defined(__WXMSW__)
+   // Swap the Close and Apply buttons
+   wxSizer *sz = mApplyBtn->GetContainingSizer();
+   wxButton *apply = new wxButton(mApplyBtn->GetParent(), wxID_APPLY);
+   sz->Replace(mCloseBtn, apply);
+   sz->Replace(mApplyBtn, mCloseBtn);
+   sz->Layout();
+   delete mApplyBtn;
+   mApplyBtn = apply;
+   mApplyBtn->SetDefault();
+   mApplyBtn->SetLabel(wxGetStockLabel(wxID_OK, 0));
+   mCloseBtn->SetLabel(wxGetStockLabel(wxID_CANCEL, 0));
+#else
    mApplyBtn->SetLabel(wxGetStockLabel(wxID_OK));
+   mCloseBtn->SetLabel(wxGetStockLabel(wxID_CANCEL));
+#endif
+
+   Layout();
 
    return wxDialog::ShowModal();
 }
@@ -2778,7 +2894,8 @@ bool EffectUIHost::Initialize()
    hs->Add(w, 1, wxEXPAND);
    vs->Add(hs, 1, wxEXPAND);
 
-   wxPanel *bar = new wxPanel(this, wxID_ANY);
+   wxPanel *buttonPanel = new wxPanel(this, wxID_ANY);
+   wxPanel *bar = new wxPanel(buttonPanel, wxID_ANY);
 
    // This fools NVDA into not saying "Panel" when the dialog gets focus
    bar->SetName(wxT("\a"));
@@ -2906,37 +3023,56 @@ bool EffectUIHost::Initialize()
 
    bar->SetSizerAndFit(bs);
 
-   long buttons = eApplyButton;
-   if (!mIsBatch)
+   long buttons = eApplyButton + eCloseButton;
+   if (mEffect->mUIDebug)
    {
-      // buttons += eCloseButton;
-      if (mEffect->mUIDebug)
-      {
-         buttons += eDebugButton;
-      }
+      buttons += eDebugButton;
    }
 
-   wxSizer *s = CreateStdButtonSizer(this, buttons, bar);
-   vs->Add(s, 0, wxEXPAND | wxALIGN_CENTER_VERTICAL);
+   buttonPanel->SetSizer(CreateStdButtonSizer(buttonPanel, buttons, bar));
+   vs->Add(buttonPanel, 0, wxEXPAND | wxALIGN_CENTER_VERTICAL);
 
    SetSizer(vs);
    Layout();
    Fit();
    Center();
 
-   mApplyBtn = (wxButton *) FindWindowById(wxID_APPLY);
-   mCloseBtn = (wxButton *) FindWindowById(wxID_CANCEL);
+   mApplyBtn = (wxButton *) FindWindow(wxID_APPLY);
+   mCloseBtn = (wxButton *) FindWindow(wxID_CANCEL);
 
    UpdateControls();
 
    w->SetAccept(!mIsGUI);
-   (!mIsGUI ? w : FindWindowById(wxID_APPLY))->SetFocus();
+   (!mIsGUI ? w : FindWindow(wxID_APPLY))->SetFocus();
  
    LoadUserPresets();
 
    InitializeRealtime();
 
    return true;
+}
+
+void EffectUIHost::OnInitDialog(wxInitDialogEvent & evt)
+{
+   // Do default handling
+   wxDialog::OnInitDialog(evt);
+
+#if wxCHECK_VERSION(3, 0, 0)
+//#warning "check to see if this still needed in wx3"
+#endif
+
+   // Pure hackage coming down the pike...
+   //
+   // I have no idea why, but if a wxTextCtrl is the first control in the
+   // panel, then its contents will not be automatically selected when the
+   // dialog is displayed.
+   //
+   // So, we do the selection manually.
+   wxTextCtrl *focused = wxDynamicCast(FindFocus(), wxTextCtrl);
+   if (focused)
+   {
+      focused->SelectAll();
+   }
 }
 
 void EffectUIHost::OnErase(wxEraseEvent & WXUNUSED(evt))
@@ -2947,10 +3083,6 @@ void EffectUIHost::OnErase(wxEraseEvent & WXUNUSED(evt))
 void EffectUIHost::OnPaint(wxPaintEvent & WXUNUSED(evt))
 {
    wxPaintDC dc(this);
-
-#if defined(__WXGTK__)
-   dc.SetBackground(wxBrush(wxSystemSettings::GetColour(wxSYS_COLOUR_3DFACE)));
-#endif
 
    dc.Clear();
 }
@@ -2974,15 +3106,23 @@ void EffectUIHost::OnApply(wxCommandEvent & evt)
    // just our Effects dialogs.  So, this is a only temporary workaround
    // for legacy effects that disable the OK button.  Hopefully this has
    // been corrected in wx3.
-   if (!FindWindowById(wxID_APPLY)->IsEnabled())
+   if (!FindWindow(wxID_APPLY)->IsEnabled())
    {
       return;
    }
 
+   // Honor the "select all if none" preference...a little hackish, but whatcha gonna do...
    if (!mIsBatch && mEffect->GetType() != EffectTypeGenerate && mProject->mViewInfo.selectedRegion.isPoint())
    {
-      wxMessageBox(_("You must select audio in the project window."));
-      return;
+      wxUint32 flags = 0;
+      bool allowed = mProject->TryToMakeActionAllowed(flags,
+                                                      WaveTracksSelectedFlag | TimeSelectedFlag,
+                                                      WaveTracksSelectedFlag | TimeSelectedFlag);
+      if (!allowed)
+      {
+         wxMessageBox(_("You must select audio in the project window."));
+         return;
+      }
    }
 
    if (!mClient->ValidateUI())
@@ -3007,7 +3147,13 @@ void EffectUIHost::OnApply(wxCommandEvent & evt)
       return;
    }
 
+   // Progress dialog no longer yields, so this "shouldn't" be necessary (yet to be proven
+   // for sure), but it is a nice visual cue that something is going on.
+   mApplyBtn->Disable();
+
    mEffect->Apply();
+
+   mApplyBtn->Enable();
 
    return;
 }
@@ -3062,6 +3208,24 @@ void EffectUIHost::OnMenu(wxCommandEvent & WXUNUSED(evt))
       menu->Append(0, _("User Presets"), sub);
    }
 
+   menu->Append(kSaveAsID, _("Save Preset..."));
+
+   if (mUserPresets.GetCount() == 0)
+   {
+      menu->Append(kDeletePresetDummyID, _("Delete Preset"))->Enable(false);
+   }
+   else
+   {
+      sub = new wxMenu();
+      for (size_t i = 0, cnt = mUserPresets.GetCount(); i < cnt; i++)
+      {
+         sub->Append(kDeletePresetID + i, mUserPresets[i]);
+      }
+      menu->Append(0, _("Delete Preset"), sub);
+   }
+
+   menu->AppendSeparator();
+
    wxArrayString factory = mEffect->GetFactoryPresets();
 
    sub = new wxMenu();
@@ -3082,22 +3246,6 @@ void EffectUIHost::OnMenu(wxCommandEvent & WXUNUSED(evt))
    }
    menu->Append(0, _("Factory Presets"), sub);
 
-   if (mUserPresets.GetCount() == 0)
-   {
-      menu->Append(kDeletePresetDummyID, _("Delete Preset"))->Enable(false);
-   }
-   else
-   {
-      sub = new wxMenu();
-      for (size_t i = 0, cnt = mUserPresets.GetCount(); i < cnt; i++)
-      {
-         sub->Append(kDeletePresetID + i, mUserPresets[i]);
-      }
-      menu->Append(0, _("Delete Preset"), sub);
-   }
-
-   menu->AppendSeparator();
-   menu->Append(kSaveAsID, _("Save As..."));
    menu->AppendSeparator();
    menu->Append(kImportID, _("Import..."))->Enable(mClient->CanExportPresets());
    menu->Append(kExportID, _("Export..."))->Enable(mClient->CanExportPresets());
@@ -3115,8 +3263,9 @@ void EffectUIHost::OnMenu(wxCommandEvent & WXUNUSED(evt))
 
    menu->Append(0, _("About"), sub);
 
-   wxRect r = FindWindowById(kMenuID)->GetParent()->GetRect();
-   PopupMenu(menu, wxPoint(r.GetLeft(), r.GetBottom()));
+   wxWindow *btn = FindWindow(kMenuID);
+   wxRect r = btn->GetRect();
+   btn->PopupMenu(menu, r.GetLeft(), r.GetBottom());
 
    delete menu;
 }
@@ -3323,18 +3472,20 @@ void EffectUIHost::OnSaveAs(wxCommandEvent & WXUNUSED(evt))
 
    S.StartPanel();
    {
-      S.StartVerticalLay(0);
+      S.StartVerticalLay(1);
       {
          S.StartHorizontalLay(wxALIGN_LEFT, 0);
          {
             text = S.AddTextBox(_("Preset name:"), name, 30);
          }
          S.EndHorizontalLay();
+         S.SetBorder(10);
          S.AddStandardButtons();
       }
       S.EndVerticalLay();
    }
    S.EndPanel();
+
    dlg.SetSize(dlg.GetSizer()->GetMinSize());
    dlg.Center();
 
@@ -3348,16 +3499,39 @@ void EffectUIHost::OnSaveAs(wxCommandEvent & WXUNUSED(evt))
       }
 
       name = text->GetValue();
-      if (mUserPresets.Index(name) == wxNOT_FOUND)
+      if (name.IsEmpty())
       {
-         mEffect->SaveUserPreset(mEffect->GetUserPresetsGroup(name));
-         LoadUserPresets();
-         break;
+         wxMessageDialog md(this,
+                            _("You must specify a name"),
+                            _("Save Preset"));
+         md.Center();
+         md.ShowModal();
+         continue;
       }
 
-      wxMessageBox(_("Preset already exists"),
-                     _("Save Preset"),
-                     wxICON_EXCLAMATION);
+      if (mUserPresets.Index(name) != wxNOT_FOUND)
+      {
+         wxMessageDialog md(this,
+                            _("Preset already exists.\n\nReplace?"),
+                            _("Save Preset"),
+                            wxYES_NO | wxCANCEL | wxICON_EXCLAMATION);
+         md.Center();
+         int choice = md.ShowModal();
+         if (choice == wxID_CANCEL)
+         {
+            break;
+         }
+
+         if (choice == wxID_NO)
+         {
+            continue;
+         }
+      }
+
+      mEffect->SaveUserPreset(mEffect->GetUserPresetsGroup(name));
+      LoadUserPresets();
+
+      break;
    }
 
    return;

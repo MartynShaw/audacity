@@ -120,7 +120,7 @@ private:
 
 wxChar NumberFormatter::GetDecimalSeparator()
 {
-#if wxUSE_INTL
+#if wxUSE_INTL 
     // Notice that while using static variable here is not MT-safe, the worst
     // that can happen is that we redo the initialization if we're called
     // concurrently from more than one thread so it's not a real problem.

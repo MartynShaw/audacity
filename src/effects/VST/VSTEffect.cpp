@@ -486,7 +486,11 @@ bool VSTEffectsModule::RegisterPlugin(PluginManagerInterface & pm, const wxStrin
       VSTSubProcess *proc = new VSTSubProcess();
       try
       {
-         wxExecute(cmd, wxEXEC_SYNC | wxEXEC_NODISABLE, proc);
+         int flags = wxEXEC_SYNC | wxEXEC_NODISABLE;
+#if defined(__WXMSW__)
+         flags += wxEXEC_NOHIDE;
+#endif
+         wxExecute(cmd, flags, proc);
       }
       catch (...)
       {
@@ -1839,11 +1843,15 @@ bool VSTEffect::ProcessFinalize()
 
 sampleCount VSTEffect::ProcessBlock(float **inBlock, float **outBlock, sampleCount blockLen)
 {
-   // Go let the plugin moleste the samples
-   callProcessReplacing(inBlock, outBlock, blockLen);
+   // Only call the effect if there's something to do...some do not like zero-length block
+   if (blockLen)
+   {
+      // Go let the plugin moleste the samples
+      callProcessReplacing(inBlock, outBlock, blockLen);
 
-   // And track the position
-   mTimeInfo.samplePos += ((double) blockLen / mTimeInfo.sampleRate);
+      // And track the position
+      mTimeInfo.samplePos += ((double) blockLen / mTimeInfo.sampleRate);
+   }
 
    return blockLen;
 }
@@ -3507,17 +3515,14 @@ void VSTEffect::BuildPlain()
    // Add the duration control for generators
    if (GetType() == EffectTypeGenerate)
    {
-      bool isSelection;
-      double duration = mHost->GetDuration(&isSelection);
-
       wxControl *item = new wxStaticText(scroller, 0, _("Duration:"));
       gridSizer->Add(item, 0, wxALIGN_CENTER_VERTICAL | wxALIGN_RIGHT | wxALL, 5);
       mDuration = new
          NumericTextCtrl(NumericConverter::TIME,
                          scroller,
                          ID_Duration,
-                         isSelection ? _("hh:mm:ss + samples") : _("hh:mm:ss + milliseconds"),
-                         duration,
+                         mHost->GetDurationFormat(),
+                         mHost->GetDuration(),
                          mSampleRate,
                          wxDefaultPosition,
                          wxDefaultSize,

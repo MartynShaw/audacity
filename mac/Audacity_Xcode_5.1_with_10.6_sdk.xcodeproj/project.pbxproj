@@ -11,7 +11,7 @@
 			isa = PBXAggregateTarget;
 			buildConfigurationList = 17072E890988BD58008541CC /* Build configuration list for PBXAggregateTarget "Configure" */;
 			buildPhases = (
-				17072E8C0988BD85008541CC /* Run Script */,
+				17072E8C0988BD85008541CC /* Configure */,
 			);
 			dependencies = (
 			);
@@ -849,6 +849,15 @@
 		28884972131B6CF600B59735 /* zh_TW.po in Sources */ = {isa = PBXBuildFile; fileRef = 28884941131B6CF600B59735 /* zh_TW.po */; };
 		28884973131B6CF600B59735 /* zh.po in Sources */ = {isa = PBXBuildFile; fileRef = 28884942131B6CF600B59735 /* zh.po */; };
 		2888A1631AE25F9A00E06FDC /* Diags.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 2888A1611AE25F9A00E06FDC /* Diags.cpp */; };
+		288A1FF91AF37EC000DC8F71 /* fixed_intrin_sse2.c in Sources */ = {isa = PBXBuildFile; fileRef = 288A1FF01AF37EC000DC8F71 /* fixed_intrin_sse2.c */; };
+		288A1FFA1AF37EC000DC8F71 /* fixed_intrin_ssse3.c in Sources */ = {isa = PBXBuildFile; fileRef = 288A1FF11AF37EC000DC8F71 /* fixed_intrin_ssse3.c */; };
+		288A1FFB1AF37EC000DC8F71 /* lpc_intrin_avx2.c in Sources */ = {isa = PBXBuildFile; fileRef = 288A1FF21AF37EC000DC8F71 /* lpc_intrin_avx2.c */; };
+		288A1FFC1AF37EC000DC8F71 /* lpc_intrin_sse.c in Sources */ = {isa = PBXBuildFile; fileRef = 288A1FF31AF37EC000DC8F71 /* lpc_intrin_sse.c */; };
+		288A1FFD1AF37EC000DC8F71 /* lpc_intrin_sse2.c in Sources */ = {isa = PBXBuildFile; fileRef = 288A1FF41AF37EC000DC8F71 /* lpc_intrin_sse2.c */; };
+		288A1FFE1AF37EC000DC8F71 /* lpc_intrin_sse41.c in Sources */ = {isa = PBXBuildFile; fileRef = 288A1FF51AF37EC000DC8F71 /* lpc_intrin_sse41.c */; };
+		288A1FFF1AF37EC000DC8F71 /* stream_encoder_intrin_avx2.c in Sources */ = {isa = PBXBuildFile; fileRef = 288A1FF61AF37EC000DC8F71 /* stream_encoder_intrin_avx2.c */; };
+		288A20001AF37EC000DC8F71 /* stream_encoder_intrin_sse2.c in Sources */ = {isa = PBXBuildFile; fileRef = 288A1FF71AF37EC000DC8F71 /* stream_encoder_intrin_sse2.c */; };
+		288A20011AF37EC000DC8F71 /* stream_encoder_intrin_ssse3.c in Sources */ = {isa = PBXBuildFile; fileRef = 288A1FF81AF37EC000DC8F71 /* stream_encoder_intrin_ssse3.c */; };
 		288A544B1346D1BA0050D774 /* chanmap.c in Sources */ = {isa = PBXBuildFile; fileRef = 288A54481346D1BA0050D774 /* chanmap.c */; };
 		288A544C1346D1BA0050D774 /* chanmap.h in Headers */ = {isa = PBXBuildFile; fileRef = 288A54491346D1BA0050D774 /* chanmap.h */; };
 		288A544D1346D1BA0050D774 /* id3.c in Sources */ = {isa = PBXBuildFile; fileRef = 288A544A1346D1BA0050D774 /* id3.c */; };
@@ -2555,6 +2564,15 @@
 		28884942131B6CF600B59735 /* zh.po */ = {isa = PBXFileReference; explicitFileType = sourcecode; fileEncoding = 5; name = zh.po; path = ../locale/zh.po; sourceTree = SOURCE_ROOT; };
 		2888A1611AE25F9A00E06FDC /* Diags.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = Diags.cpp; sourceTree = "<group>"; };
 		2888A1621AE25F9A00E06FDC /* Diags.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Diags.h; sourceTree = "<group>"; };
+		288A1FF01AF37EC000DC8F71 /* fixed_intrin_sse2.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = fixed_intrin_sse2.c; sourceTree = "<group>"; };
+		288A1FF11AF37EC000DC8F71 /* fixed_intrin_ssse3.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = fixed_intrin_ssse3.c; sourceTree = "<group>"; };
+		288A1FF21AF37EC000DC8F71 /* lpc_intrin_avx2.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = lpc_intrin_avx2.c; sourceTree = "<group>"; };
+		288A1FF31AF37EC000DC8F71 /* lpc_intrin_sse.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = lpc_intrin_sse.c; sourceTree = "<group>"; };
+		288A1FF41AF37EC000DC8F71 /* lpc_intrin_sse2.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = lpc_intrin_sse2.c; sourceTree = "<group>"; };
+		288A1FF51AF37EC000DC8F71 /* lpc_intrin_sse41.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = lpc_intrin_sse41.c; sourceTree = "<group>"; };
+		288A1FF61AF37EC000DC8F71 /* stream_encoder_intrin_avx2.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = stream_encoder_intrin_avx2.c; sourceTree = "<group>"; };
+		288A1FF71AF37EC000DC8F71 /* stream_encoder_intrin_sse2.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = stream_encoder_intrin_sse2.c; sourceTree = "<group>"; };
+		288A1FF81AF37EC000DC8F71 /* stream_encoder_intrin_ssse3.c */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.c; path = stream_encoder_intrin_ssse3.c; sourceTree = "<group>"; };
 		288A54481346D1BA0050D774 /* chanmap.c */ = {isa = PBXFileReference; fileEncoding = 5; lastKnownFileType = sourcecode.c.c; path = chanmap.c; sourceTree = "<group>"; };
 		288A54491346D1BA0050D774 /* chanmap.h */ = {isa = PBXFileReference; fileEncoding = 5; lastKnownFileType = sourcecode.c.h; path = chanmap.h; sourceTree = "<group>"; };
 		288A544A1346D1BA0050D774 /* id3.c */ = {isa = PBXFileReference; fileEncoding = 5; lastKnownFileType = sourcecode.c.c; path = id3.c; sourceTree = "<group>"; };
@@ -3682,9 +3700,15 @@
 				176EEABF09A2EF1100188F3B /* cpu.c */,
 				176EEAC209A2EF1100188F3B /* crc.c */,
 				176EEACB09A2EF1100188F3B /* fixed.c */,
+				288A1FF01AF37EC000DC8F71 /* fixed_intrin_sse2.c */,
+				288A1FF11AF37EC000DC8F71 /* fixed_intrin_ssse3.c */,
 				176EEACE09A2EF1100188F3B /* float.c */,
 				176EEAD109A2EF1100188F3B /* format.c */,
 				176EEB0009A2EF1100188F3B /* lpc.c */,
+				288A1FF21AF37EC000DC8F71 /* lpc_intrin_avx2.c */,
+				288A1FF31AF37EC000DC8F71 /* lpc_intrin_sse.c */,
+				288A1FF41AF37EC000DC8F71 /* lpc_intrin_sse2.c */,
+				288A1FF51AF37EC000DC8F71 /* lpc_intrin_sse41.c */,
 				176EEB0809A2EF1100188F3B /* md5.c */,
 				176EEB0B09A2EF1100188F3B /* memory.c */,
 				176EEB0E09A2EF1100188F3B /* metadata_iterators.c */,
@@ -3696,6 +3720,9 @@
 				176EEB2809A2EF1100188F3B /* stream_decoder.c */,
 				176EEB2B09A2EF1100188F3B /* stream_encoder.c */,
 				176EEB2E09A2EF1100188F3B /* stream_encoder_framing.c */,
+				288A1FF61AF37EC000DC8F71 /* stream_encoder_intrin_avx2.c */,
+				288A1FF71AF37EC000DC8F71 /* stream_encoder_intrin_sse2.c */,
+				288A1FF81AF37EC000DC8F71 /* stream_encoder_intrin_ssse3.c */,
 			);
 			path = libFLAC;
 			sourceTree = "<group>";
@@ -6380,6 +6407,7 @@
 				1790AFAE09883B6D008A330A /* Frameworks */,
 				28032560131DAFAF0059D002 /* Copy nyquist */,
 				28032580131DB4960059D002 /* Copy plug-ins */,
+				28708D631B17C3C400496FEB /* Install wxWidgets libs */,
 				288F0980131A400F0008E860 /* Install manual */,
 				282413DA131D52CE009FD931 /* Install plugins */,
 				2892CE28131AFB1900E1E17D /* Install miscellany */,
@@ -6694,7 +6722,7 @@
 /* End PBXRezBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		17072E8C0988BD85008541CC /* Run Script */ = {
+		17072E8C0988BD85008541CC /* Configure */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -6702,7 +6730,7 @@
 			inputPaths = (
 				"$(TOPLEVEL)/Makefile.in",
 			);
-			name = "Run Script";
+			name = Configure;
 			outputPaths = (
 				"$(TOPLEVEL)/Makefile",
 			);
@@ -6769,6 +6797,20 @@
 			runOnlyForDeploymentPostprocessing = 1;
 			shellPath = /bin/sh;
 			shellScript = "\"${PROJECT_DIR}/build_plugins.sh\"";
+		};
+		28708D631B17C3C400496FEB /* Install wxWidgets libs */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 8;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Install wxWidgets libs";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 1;
+			shellPath = /bin/sh;
+			shellScript = "#!/bin/sh\n\nupdate_paths()\n{\n   base=$(basename \"${1}\")\n   cp -p \"${1}\" \"${LIBPATH}\"\n\n   for lib in $(otool -L \"${1}\" | awk '/libwx/{print $1}')\n   do\n      install_name_tool -change \"${lib}\" @loader_path/../Frameworks/$(basename \"${lib}\") \"${LIBPATH}/${base}\"\n   done\n}\n\nEXEPATH=\"${BUILT_PRODUCTS_DIR}/${EXECUTABLE_PATH}\"\nLIBPATH=\"${BUILT_PRODUCTS_DIR}/${FRAMEWORKS_FOLDER_PATH}\"\n\nmkdir -p \"${LIBPATH}\"\n\nfor lib in $(otool -L \"${EXEPATH}\" | awk '/libwx/{print $1}')\ndo\n   install_name_tool -change \"${lib}\" @executable_path/../Frameworks/$(basename \"${lib}\") \"${EXEPATH}\"\n   update_paths \"${lib}\"\ndone\n";
 		};
 		288F0980131A400F0008E860 /* Install manual */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -7208,13 +7250,21 @@
 				176EEC0B09A2F20800188F3B /* float.c in Sources */,
 				176EEC0C09A2F20800188F3B /* format.c in Sources */,
 				176EEC0D09A2F20800188F3B /* lpc.c in Sources */,
+				288A1FFC1AF37EC000DC8F71 /* lpc_intrin_sse.c in Sources */,
+				288A20011AF37EC000DC8F71 /* stream_encoder_intrin_ssse3.c in Sources */,
 				176EEC0E09A2F20800188F3B /* md5.c in Sources */,
 				176EEC0F09A2F20800188F3B /* memory.c in Sources */,
+				288A1FFA1AF37EC000DC8F71 /* fixed_intrin_ssse3.c in Sources */,
 				176EEC1009A2F20800188F3B /* metadata_iterators.c in Sources */,
+				288A20001AF37EC000DC8F71 /* stream_encoder_intrin_sse2.c in Sources */,
+				288A1FFE1AF37EC000DC8F71 /* lpc_intrin_sse41.c in Sources */,
 				176EEC1109A2F20800188F3B /* metadata_object.c in Sources */,
+				288A1FFB1AF37EC000DC8F71 /* lpc_intrin_avx2.c in Sources */,
 				176EEC1409A2F20800188F3B /* stream_decoder.c in Sources */,
 				176EEC1509A2F20800188F3B /* stream_encoder.c in Sources */,
+				288A1FFD1AF37EC000DC8F71 /* lpc_intrin_sse2.c in Sources */,
 				176EEC1609A2F20800188F3B /* stream_encoder_framing.c in Sources */,
+				288A1FFF1AF37EC000DC8F71 /* stream_encoder_intrin_avx2.c in Sources */,
 				28EA56630D9753B000C8D1B6 /* bitreader.c in Sources */,
 				28EA56640D9753B000C8D1B6 /* bitwriter.c in Sources */,
 				28EA56650D9753B000C8D1B6 /* window.c in Sources */,
@@ -7222,6 +7272,7 @@
 				ED924BD2182EA20500319F81 /* ogg_encoder_aspect.c in Sources */,
 				ED924BD3182EA20500319F81 /* ogg_helper.c in Sources */,
 				ED924BD4182EA20500319F81 /* ogg_mapping.c in Sources */,
+				288A1FF91AF37EC000DC8F71 /* fixed_intrin_sse2.c in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -8020,6 +8071,7 @@
 			baseConfigurationReference = 2812A5B90DF63FF000576305 /* Debug_Static.xcconfig */;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
 				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(GCC_PREPROCESSOR_DEFINITIONS_QUOTED_FOR_TARGET_1)",
@@ -8076,7 +8128,7 @@
 					"-lFLAC",
 				);
 				PRODUCT_NAME = Audacity;
-				SKIP_INSTALL = NO;
+				STRIP_INSTALLED_PRODUCT = NO;
 				USER_HEADER_SEARCH_PATHS = "$(TOPLEVEL)/include $(TOPLEVEL)/mac/config/$(arch)/src/** $(TOPLEVEL)/mac $(TOPLEVEL)/src/** $(TOPLEVEL)/lib-src/FileDialog $(TOPLEVEL)/lib-src/libflac/include $(TOPLEVEL)/lib-src/libid3tag $(TOPLEVEL)/lib-src/lame $(TOPLEVEL)/mac/config/$(arch)/lib-src/libmad $(TOPLEVEL)/lib-src/libmad $(TOPLEVEL)/lib-src/libogg/include $(TOPLEVEL)/lib-src/libnyquist/nyq $(TOPLEVEL)/mac/config/$(arch)/lib-src/libsndfile/** $(TOPLEVEL)/lib-src/libsndfile/src $(TOPLEVEL)/lib-src/libsoxr/src $(TOPLEVEL)/lib-src/libvamp $(TOPLEVEL)/lib-src/libvorbis/include $(TOPLEVEL)/lib-src/portaudio-v19/include $(TOPLEVEL)/lib-src/portmixer/px_common $(TOPLEVEL)/lib-src/portsmf $(TOPLEVEL)/mac/config/$(arch)/lib-src/soundtouch/** $(TOPLEVEL)/lib-src/soundtouch/include $(TOPLEVEL)/lib-src/lv2/lv2 $(TOPLEVEL)/lib-src/lv2/lilv $(TOPLEVEL)/lib-src/lv2/suil $(TOPLEVEL)/lib-src/twolame/libtwolame $(TOPLEVEL)/mac/config/$(arch)/lib-src/sbsms/**";
 			};
 			name = "Debug Static";
@@ -8092,7 +8144,6 @@
 				FFMPEG_CFLAGS = "-I../lib-src/ffmpeg -D__STDC_CONSTANT_MACROS";
 				FFMPEG_CXXFLAGS = "$(FFMPEG_CFLAGS)";
 				FFMPEG_PREFIX = /usr/local;
-				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_OPTIMIZATION_LEVEL = 0;
 				INFOPLIST_OTHER_PREPROCESSOR_FLAGS = "-traditional";
 				INFOPLIST_PREFIX_HEADER = Info.plist.h;
@@ -8362,6 +8413,7 @@
 				PREBINDING = NO;
 				PRODUCT_NAME = "mod-script-pipe";
 				SKIP_INSTALL = NO;
+				USER_HEADER_SEARCH_PATHS = "$(TOPLEVEL)/include $(TOPLEVEL)/mac/config/** $(TOPLEVEL)/src/**";
 				ZERO_LINK = YES;
 			};
 			name = "Debug Static";
@@ -8394,6 +8446,7 @@
 				PREBINDING = NO;
 				PRODUCT_NAME = "mod-script-pipe";
 				SKIP_INSTALL = NO;
+				USER_HEADER_SEARCH_PATHS = "$(TOPLEVEL)/include $(TOPLEVEL)/mac/config/** $(TOPLEVEL)/src/**";
 				ZERO_LINK = YES;
 			};
 			name = "Release Static";
@@ -8409,10 +8462,7 @@
 				FFMPEG_CFLAGS = "-I../lib-src/ffmpeg -D__STDC_CONSTANT_MACROS";
 				FFMPEG_CXXFLAGS = "$(FFMPEG_CFLAGS)";
 				FFMPEG_PREFIX = /usr/local;
-				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_INLINES_ARE_PRIVATE_EXTERN = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
-				GCC_SYMBOLS_PRIVATE_EXTERN = YES;
 				INFOPLIST_OTHER_PREPROCESSOR_FLAGS = "-traditional";
 				INFOPLIST_PREFIX_HEADER = Info.plist.h;
 				INFOPLIST_PREPROCESS = YES;
@@ -8424,7 +8474,7 @@
 				WX_CFLAGS = "-I$(WX_PREFIX)/lib/wx/include/mac-unicode-debug-$(WX_VER) -I$(WX_PREFIX)/include/wx-$(WX_VER) -D__WXDEBUG__ -D__WXMAC__ -D_FILE_OFFSET_BITS=64 -D_LARGE_FILES -DNO_GCC_PRAGMA";
 				WX_CONFIG = "$(WX_PREFIX)/bin/wx-config";
 				WX_CXXFLAGS = "$(WX_CFLAGS)";
-				WX_LDFLAGS = "-L$(WX_PREFIX)/lib -lwx_macud_html-$(WX_VER)  -lwx_macud_adv-$(WX_VER) -lwx_macud_core-$(WX_VER) -lwx_base_carbonud_net-$(WX_VER) -lwx_base_carbonud-$(WX_VER) $(WX_PREFIX)/lib/libwxregexud-$(WX_VER).a $(WX_PREFIX)/lib/libwxexpatd-$(WX_VER).a $(WX_PREFIX)/lib/libwxtiffd-$(WX_VER).a $(WX_PREFIX)/lib/libwxjpegd-$(WX_VER).a $(WX_PREFIX)/lib/libwxpngd-$(WX_VER).a";
+				WX_LDFLAGS = "-L$(WX_PREFIX)/lib -lwx_macud_xrc-$(WX_VER) -lwx_macud_qa-$(WX_VER) -lwx_macud_html-$(WX_VER)  -lwx_macud_adv-$(WX_VER) -lwx_macud_core-$(WX_VER) -lwx_base_carbonud_xml-$(WX_VER) -lwx_base_carbonud_net-$(WX_VER) -lwx_base_carbonud-$(WX_VER) $(WX_PREFIX)/lib/libwxregexud-$(WX_VER).a $(WX_PREFIX)/lib/libwxexpatd-$(WX_VER).a $(WX_PREFIX)/lib/libwxtiffd-$(WX_VER).a $(WX_PREFIX)/lib/libwxjpegd-$(WX_VER).a $(WX_PREFIX)/lib/libwxpngd-$(WX_VER).a";
 				WX_PREFIX = /usr/local;
 				WX_VER = 2.8;
 				ZERO_LINK = NO;
@@ -8436,12 +8486,15 @@
 			baseConfigurationReference = 2812A5B70DF63FE500576305 /* Debug_Shared.xcconfig */;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(GCC_PREPROCESSOR_DEFINITIONS_QUOTED_FOR_TARGET_1)",
 					"BUILDING_AUDACITY=1",
 					"$(GCC_PREPROCESSOR_DEFINITIONS_QUOTED_FOR_TARGET_1)",
 				);
 				GCC_PREPROCESSOR_DEFINITIONS_QUOTED_FOR_TARGET_1 = "AUDACITY_DLL_API=\"\"";
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				INFOPLIST_FILE = Info.plist;
 				INSTALL_PATH = /Audacity;
 				LIBRARY_SEARCH_PATHS = (
@@ -8490,7 +8543,7 @@
 					"-lFLAC",
 				);
 				PRODUCT_NAME = Audacity;
-				SKIP_INSTALL = NO;
+				STRIP_INSTALLED_PRODUCT = NO;
 				USER_HEADER_SEARCH_PATHS = "$(TOPLEVEL)/include $(TOPLEVEL)/mac/config/$(arch)/src/** $(TOPLEVEL)/mac $(TOPLEVEL)/src/** $(TOPLEVEL)/lib-src/FileDialog $(TOPLEVEL)/lib-src/libflac/include $(TOPLEVEL)/lib-src/libid3tag $(TOPLEVEL)/lib-src/lame $(TOPLEVEL)/mac/config/$(arch)/lib-src/libmad $(TOPLEVEL)/lib-src/libmad $(TOPLEVEL)/lib-src/libogg/include $(TOPLEVEL)/lib-src/libnyquist/nyq $(TOPLEVEL)/mac/config/$(arch)/lib-src/libsndfile/** $(TOPLEVEL)/lib-src/libsndfile/src $(TOPLEVEL)/lib-src/libsoxr/src $(TOPLEVEL)/lib-src/libvamp $(TOPLEVEL)/lib-src/libvorbis/include $(TOPLEVEL)/lib-src/portaudio-v19/include $(TOPLEVEL)/lib-src/portmixer/px_common $(TOPLEVEL)/lib-src/portsmf $(TOPLEVEL)/mac/config/$(arch)/lib-src/soundtouch/** $(TOPLEVEL)/lib-src/soundtouch/include $(TOPLEVEL)/lib-src/lv2/lv2 $(TOPLEVEL)/lib-src/lv2/lilv $(TOPLEVEL)/lib-src/lv2/suil $(TOPLEVEL)/lib-src/twolame/libtwolame $(TOPLEVEL)/mac/config/$(arch)/lib-src/sbsms/**";
 			};
 			name = "Debug Shared";
@@ -8730,6 +8783,7 @@
 				PREBINDING = NO;
 				PRODUCT_NAME = "mod-script-pipe";
 				SKIP_INSTALL = NO;
+				USER_HEADER_SEARCH_PATHS = "$(TOPLEVEL)/include $(TOPLEVEL)/mac/config/** $(TOPLEVEL)/src/**";
 				ZERO_LINK = YES;
 			};
 			name = "Debug Shared";
@@ -8745,10 +8799,7 @@
 				FFMPEG_CFLAGS = "-I../lib-src/ffmpeg -D__STDC_CONSTANT_MACROS";
 				FFMPEG_CXXFLAGS = "$(FFMPEG_CFLAGS)";
 				FFMPEG_PREFIX = /usr/local;
-				GCC_DYNAMIC_NO_PIC = NO;
-				GCC_INLINES_ARE_PRIVATE_EXTERN = YES;
 				GCC_OPTIMIZATION_LEVEL = 3;
-				GCC_SYMBOLS_PRIVATE_EXTERN = YES;
 				INFOPLIST_OTHER_PREPROCESSOR_FLAGS = "-traditional";
 				INFOPLIST_PREFIX_HEADER = Info.plist.h;
 				INFOPLIST_PREPROCESS = YES;
@@ -8760,7 +8811,7 @@
 				WX_CFLAGS = "-I$(WX_PREFIX)/lib/wx/include/mac-unicode-release-$(WX_VER) -I$(WX_PREFIX)/include/wx-$(WX_VER) -D__WXMAC__ -D_FILE_OFFSET_BITS=64 -D_LARGE_FILES -DNO_GCC_PRAGMA";
 				WX_CONFIG = "$(WX_PREFIX)/bin/wx-config";
 				WX_CXXFLAGS = "$(WX_CFLAGS)";
-				WX_LDFLAGS = "-L$(WX_PREFIX)/lib -lwx_macu_html-$(WX_VER)  -lwx_macu_adv-$(WX_VER) -lwx_macu_core-$(WX_VER) -lwx_base_carbonu_net-$(WX_VER) -lwx_base_carbonu-$(WX_VER) $(WX_PREFIX)/lib/libwxregexud-$(WX_VER).a $(WX_PREFIX)/lib/libwxexpatd-$(WX_VER).a $(WX_PREFIX)/lib/libwxtiffd-$(WX_VER).a $(WX_PREFIX)/lib/libwxjpegd-$(WX_VER).a $(WX_PREFIX)/lib/libwxpngd-$(WX_VER).a";
+				WX_LDFLAGS = "-L$(WX_PREFIX)/lib -lwx_macu_xrc-$(WX_VER) -lwx_macu_qa-$(WX_VER) -lwx_macu_html-$(WX_VER)  -lwx_macu_adv-$(WX_VER) -lwx_macu_core-$(WX_VER) -lwx_base_carbonu_xml-$(WX_VER) -lwx_base_carbonu_net-$(WX_VER) -lwx_base_carbonu-$(WX_VER) $(WX_PREFIX)/lib/libwxregexud-$(WX_VER).a $(WX_PREFIX)/lib/libwxexpatd-$(WX_VER).a $(WX_PREFIX)/lib/libwxtiffd-$(WX_VER).a $(WX_PREFIX)/lib/libwxjpegd-$(WX_VER).a $(WX_PREFIX)/lib/libwxpngd-$(WX_VER).a";
 				WX_PREFIX = /usr/local;
 				WX_VER = 2.8;
 				ZERO_LINK = NO;
@@ -8772,6 +8823,8 @@
 			baseConfigurationReference = 2812A5BB0DF63FFD00576305 /* Release_Shared.xcconfig */;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
+				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "$(TOPLEVEL)/src/AudacityHeaders.h";
 				GCC_PREPROCESSOR_DEFINITIONS = (
@@ -8780,6 +8833,7 @@
 					"$(GCC_PREPROCESSOR_DEFINITIONS_QUOTED_FOR_TARGET_1)",
 				);
 				GCC_PREPROCESSOR_DEFINITIONS_QUOTED_FOR_TARGET_1 = "AUDACITY_DLL_API=\"\"";
+				GCC_SYMBOLS_PRIVATE_EXTERN = NO;
 				INFOPLIST_FILE = Info.plist;
 				INSTALL_PATH = /Audacity;
 				LIBRARY_SEARCH_PATHS = (
@@ -8828,7 +8882,7 @@
 					"-lFLAC",
 				);
 				PRODUCT_NAME = Audacity;
-				SKIP_INSTALL = NO;
+				STRIP_INSTALLED_PRODUCT = NO;
 				USER_HEADER_SEARCH_PATHS = "$(TOPLEVEL)/include $(TOPLEVEL)/mac/config/$(arch)/src/** $(TOPLEVEL)/mac $(TOPLEVEL)/src/** $(TOPLEVEL)/lib-src/FileDialog $(TOPLEVEL)/lib-src/libflac/include $(TOPLEVEL)/lib-src/libid3tag $(TOPLEVEL)/lib-src/lame $(TOPLEVEL)/mac/config/$(arch)/lib-src/libmad $(TOPLEVEL)/lib-src/libmad $(TOPLEVEL)/lib-src/libogg/include $(TOPLEVEL)/lib-src/libnyquist/nyq $(TOPLEVEL)/mac/config/$(arch)/lib-src/libsndfile/** $(TOPLEVEL)/lib-src/libsndfile/src $(TOPLEVEL)/lib-src/libsoxr/src $(TOPLEVEL)/lib-src/libvamp $(TOPLEVEL)/lib-src/libvorbis/include $(TOPLEVEL)/lib-src/portaudio-v19/include $(TOPLEVEL)/lib-src/portmixer/px_common $(TOPLEVEL)/lib-src/portsmf $(TOPLEVEL)/mac/config/$(arch)/lib-src/soundtouch/** $(TOPLEVEL)/lib-src/soundtouch/include $(TOPLEVEL)/lib-src/lv2/lv2 $(TOPLEVEL)/lib-src/lv2/lilv $(TOPLEVEL)/lib-src/lv2/suil $(TOPLEVEL)/lib-src/twolame/libtwolame $(TOPLEVEL)/mac/config/$(arch)/lib-src/sbsms/**";
 			};
 			name = "Release Shared";
@@ -9068,6 +9122,7 @@
 				PREBINDING = NO;
 				PRODUCT_NAME = "mod-script-pipe";
 				SKIP_INSTALL = NO;
+				USER_HEADER_SEARCH_PATHS = "$(TOPLEVEL)/include $(TOPLEVEL)/mac/config/** $(TOPLEVEL)/src/**";
 				ZERO_LINK = YES;
 			};
 			name = "Release Shared";
@@ -9327,6 +9382,7 @@
 			baseConfigurationReference = 2812A5BD0DF6400E00576305 /* Release_Static.xcconfig */;
 			buildSettings = {
 				COMBINE_HIDPI_IMAGES = YES;
+				COPY_PHASE_STRIP = NO;
 				GCC_INLINES_ARE_PRIVATE_EXTERN = NO;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "$(TOPLEVEL)/src/AudacityHeaders.h";
@@ -9385,7 +9441,7 @@
 					"-lFLAC",
 				);
 				PRODUCT_NAME = Audacity;
-				SKIP_INSTALL = NO;
+				STRIP_INSTALLED_PRODUCT = NO;
 				USER_HEADER_SEARCH_PATHS = "$(TOPLEVEL)/include $(TOPLEVEL)/mac/config/$(arch)/src/** $(TOPLEVEL)/mac $(TOPLEVEL)/src/** $(TOPLEVEL)/lib-src/FileDialog $(TOPLEVEL)/lib-src/libflac/include $(TOPLEVEL)/lib-src/libid3tag $(TOPLEVEL)/lib-src/lame $(TOPLEVEL)/mac/config/$(arch)/lib-src/libmad $(TOPLEVEL)/lib-src/libmad $(TOPLEVEL)/lib-src/libogg/include $(TOPLEVEL)/lib-src/libnyquist/nyq $(TOPLEVEL)/mac/config/$(arch)/lib-src/libsndfile/** $(TOPLEVEL)/lib-src/libsndfile/src $(TOPLEVEL)/lib-src/libsoxr/src $(TOPLEVEL)/lib-src/libvamp $(TOPLEVEL)/lib-src/libvorbis/include $(TOPLEVEL)/lib-src/portaudio-v19/include $(TOPLEVEL)/lib-src/portmixer/px_common $(TOPLEVEL)/lib-src/portsmf $(TOPLEVEL)/mac/config/$(arch)/lib-src/soundtouch/** $(TOPLEVEL)/lib-src/soundtouch/include $(TOPLEVEL)/lib-src/lv2/lv2 $(TOPLEVEL)/lib-src/lv2/lilv $(TOPLEVEL)/lib-src/lv2/suil $(TOPLEVEL)/lib-src/twolame/libtwolame $(TOPLEVEL)/mac/config/$(arch)/lib-src/sbsms/**";
 			};
 			name = "Release Static";
@@ -9401,7 +9457,6 @@
 				FFMPEG_CFLAGS = "-I../lib-src/ffmpeg -D__STDC_CONSTANT_MACROS";
 				FFMPEG_CXXFLAGS = "$(FFMPEG_CFLAGS)";
 				FFMPEG_PREFIX = /usr/local;
-				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_OPTIMIZATION_LEVEL = 3;
 				INFOPLIST_OTHER_PREPROCESSOR_FLAGS = "-traditional";
 				INFOPLIST_PREFIX_HEADER = Info.plist.h;
@@ -9637,16 +9692,8 @@
 				INSTALL_PATH = /Audacity/modules;
 				KEEP_PRIVATE_EXTERNS = NO;
 				MACH_O_TYPE = mh_dylib;
-				OTHER_CFLAGS = (
-					"-I",
-					../src,
-					"$(WX_CFLAGS)",
-				);
-				OTHER_CPLUSPLUSFLAGS = (
-					"-I",
-					../src,
-					"$(WX_CXXFLAGS)",
-				);
+				OTHER_CFLAGS = "$(WX_CFLAGS)";
+				OTHER_CPLUSPLUSFLAGS = "$(WX_CXXFLAGS)";
 				OTHER_LDFLAGS = (
 					"-flat_namespace",
 					"-undefined",
@@ -9656,6 +9703,7 @@
 				PREBINDING = NO;
 				PRODUCT_NAME = "mod-nyq-bench";
 				SKIP_INSTALL = NO;
+				USER_HEADER_SEARCH_PATHS = "$(TOPLEVEL)/include $(TOPLEVEL)/mac/config/** $(TOPLEVEL)/src/**";
 				ZERO_LINK = YES;
 			};
 			name = "Debug Static";
@@ -9675,16 +9723,8 @@
 				INSTALL_PATH = /Audacity/modules;
 				KEEP_PRIVATE_EXTERNS = NO;
 				MACH_O_TYPE = mh_dylib;
-				OTHER_CFLAGS = (
-					"-I",
-					../src,
-					"$(WX_CFLAGS)",
-				);
-				OTHER_CPLUSPLUSFLAGS = (
-					"-I",
-					../src,
-					"$(WX_CXXFLAGS)",
-				);
+				OTHER_CFLAGS = "$(WX_CFLAGS)";
+				OTHER_CPLUSPLUSFLAGS = "$(WX_CXXFLAGS)";
 				OTHER_LDFLAGS = (
 					"-flat_namespace",
 					"-undefined",
@@ -9694,6 +9734,7 @@
 				PREBINDING = NO;
 				PRODUCT_NAME = "mod-nyq-bench";
 				SKIP_INSTALL = NO;
+				USER_HEADER_SEARCH_PATHS = "$(TOPLEVEL)/include $(TOPLEVEL)/mac/config/** $(TOPLEVEL)/src/**";
 				ZERO_LINK = YES;
 			};
 			name = "Debug Shared";
@@ -9713,16 +9754,8 @@
 				INSTALL_PATH = /Audacity/modules;
 				KEEP_PRIVATE_EXTERNS = NO;
 				MACH_O_TYPE = mh_dylib;
-				OTHER_CFLAGS = (
-					"-I",
-					../src,
-					"$(WX_CFLAGS)",
-				);
-				OTHER_CPLUSPLUSFLAGS = (
-					"-I",
-					../src,
-					"$(WX_CXXFLAGS)",
-				);
+				OTHER_CFLAGS = "$(WX_CFLAGS)";
+				OTHER_CPLUSPLUSFLAGS = "$(WX_CXXFLAGS)";
 				OTHER_LDFLAGS = (
 					"-flat_namespace",
 					"-undefined",
@@ -9732,6 +9765,7 @@
 				PREBINDING = NO;
 				PRODUCT_NAME = "mod-nyq-bench";
 				SKIP_INSTALL = NO;
+				USER_HEADER_SEARCH_PATHS = "$(TOPLEVEL)/include $(TOPLEVEL)/mac/config/** $(TOPLEVEL)/src/**";
 				ZERO_LINK = YES;
 			};
 			name = "Release Static";
@@ -9751,16 +9785,8 @@
 				INSTALL_PATH = /Audacity/modules;
 				KEEP_PRIVATE_EXTERNS = NO;
 				MACH_O_TYPE = mh_dylib;
-				OTHER_CFLAGS = (
-					"-I",
-					../src,
-					"$(WX_CFLAGS)",
-				);
-				OTHER_CPLUSPLUSFLAGS = (
-					"-I",
-					../src,
-					"$(WX_CXXFLAGS)",
-				);
+				OTHER_CFLAGS = "$(WX_CFLAGS)";
+				OTHER_CPLUSPLUSFLAGS = "$(WX_CXXFLAGS)";
 				OTHER_LDFLAGS = (
 					"-flat_namespace",
 					"-undefined",
@@ -9770,6 +9796,7 @@
 				PREBINDING = NO;
 				PRODUCT_NAME = "mod-nyq-bench";
 				SKIP_INSTALL = NO;
+				USER_HEADER_SEARCH_PATHS = "$(TOPLEVEL)/include $(TOPLEVEL)/mac/config/** $(TOPLEVEL)/src/**";
 				ZERO_LINK = YES;
 			};
 			name = "Release Shared";

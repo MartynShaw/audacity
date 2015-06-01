@@ -57,6 +57,7 @@ AutoRecoveryDialog::AutoRecoveryDialog(wxWindow *parent) :
             wxDefaultPosition, wxDefaultSize,
             wxDEFAULT_DIALOG_STYLE & (~wxCLOSE_BOX)) // no close box
 {
+   SetName(GetTitle());
    ShuttleGui S(this, eIsCreating);
    PopulateOrExchange(S);
 }
@@ -691,12 +692,23 @@ bool AutoSaveFile::Decode(const wxString & fileName)
    file.Close();
 
    // Decode to a temporary file to preserve the orignal.
-   wxString tempName = fn.CreateTempFileName(fn.GetPath(true));
+   wxString tempName = fn.CreateTempFileName(fn.GetPath());
+
+   bool opened = false;
 
    XMLFileWriter out;
 
-   out.Open(tempName, wxT("wb"));
-   if (!out.IsOpened())
+   try
+   {
+	   out.Open(tempName, wxT("wb"));
+	   opened = out.IsOpened();
+   }
+   catch (XMLFileWriterException* pException)
+   {
+	   delete pException;
+   }
+
+   if (!opened)
    {
       delete[] buf;
 

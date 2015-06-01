@@ -799,6 +799,12 @@ unsigned int Sequence::GetODFlags()
    return ret;
 }
 
+sampleCount Sequence::GetBlockStart(sampleCount position) const
+{
+   int b = FindBlock(position);
+   return mBlock->Item(b)->start;
+}
+
 sampleCount Sequence::GetBestBlockSize(sampleCount start) const
 {
    // This method returns a nice number of samples you should try to grab in
@@ -1312,8 +1318,8 @@ bool Sequence::GetWaveDisplay(float *min, float *max, float *rms, int* bl,
    sampleCount nextSrcX = 0;
    int lastRmsDenom = 0;
    int lastDivisor = 0;
-   int whereNow = std::min(s1 - 1, where[0]);
-   int whereNext = 0;
+   sampleCount whereNow = std::min(s1 - 1, where[0]);
+   sampleCount whereNext = 0;
    // Loop over block files, opening and reading and closing each
    // not more than once
    unsigned nBlocks = mBlock->GetCount();

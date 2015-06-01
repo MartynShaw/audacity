@@ -56,10 +56,11 @@ public:
    EffectManager();
    virtual ~EffectManager();
 
-   /** Register an effect so it can be executed. */
+   /** (Un)Register an effect so it can be executed. */
    // Here solely for the purpose of Nyquist Workbench until
    // a better solution is devised.
-   void RegisterEffect(Effect *f);
+   const PluginID & RegisterEffect(Effect *f);
+   void UnregisterEffect(const PluginID & ID);
 
    /** Run an effect given the plugin ID */
    // Returns true on success.  Will only operate on tracks that
@@ -76,6 +77,7 @@ public:
    wxString GetEffectName(const PluginID & ID);
    wxString GetEffectIdentifier(const PluginID & ID);
    wxString GetEffectDescription(const PluginID & ID);
+   bool IsHidden(const PluginID & ID);
 
    /** Support for batch commands */
    bool SupportsAutomation(const PluginID & ID);

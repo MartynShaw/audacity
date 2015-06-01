@@ -85,11 +85,14 @@ void AboutDialog::CreateCreditsList()
 
    // All other contributors
    AddCredit(wxT("Lynn Allan"), roleContributor);
+   AddCredit(wxT("David Avery"), roleContributor);
    AddCredit(wxT("David Bailes"), roleContributor);
    AddCredit(wxT("William Bland"), roleContributor);
+   AddCredit(wxT("Sami Boukortt"), roleContributor);
    AddCredit(wxT("Jeremy R. Brown"), roleContributor);
    AddCredit(wxT("Alex S. Brown"), roleContributor);
    AddCredit(wxT("Chris Cannam"), roleContributor);
+   AddCredit(wxT("Cory Cook"), roleContributor);
    AddCredit(wxT("Craig DeForest"), roleContributor);
    AddCredit(wxT("Mitch Golden"), roleContributor);
    AddCredit(wxT("Brian Gunlogson"), roleContributor);
@@ -177,6 +180,7 @@ AboutDialog::AboutDialog(wxWindow * parent)
                wxDefaultPosition, wxDefaultSize,
                wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
 {
+   SetName(GetTitle());
    this->SetBackgroundColour(theTheme.Colour( clrAboutBoxBackground ));
    icon = NULL;
    ShuttleGui S( this, eIsCreating );
@@ -521,6 +525,10 @@ void AboutDialog::PopulateInformationPage( ShuttleGui & S )
 
    // Current date
    AddBuildinfoRow(&informationStr, _("Program build date: "), __TDATE__);
+
+// Uncomment the next two lines to test hyperlinks work from here.
+//   AddBuildinfoRow(&informationStr, wxT("Link Test:"), 
+//      wxT("<a href=\"https:web.audacityteam.org\">Click bait</a>") );
 
    AddBuildinfoRow(&informationStr, _("Commit Id:"),
 #include "RevisionIdent.h"

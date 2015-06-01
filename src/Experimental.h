@@ -39,7 +39,7 @@
 #define EXPERIMENTAL_FULL_WASAPI
 
 // JKC (effect by Norm C, 02 Oct 2013)
-//#define EXPERIMENTAL_SCIENCE_FILTERS
+#define EXPERIMENTAL_SCIENCE_FILTERS
 
 // LLL, 01 Oct 2013:
 // new key assignment view for preferences
@@ -167,10 +167,10 @@
 #define EXPERIMENTAL_NOISE_REDUCTION
 
 // Define to enable Nyquist audio clip boundary control (Steve Daulton Dec 2014)
-// #define EXPERIMENTAL_NYQUIST_SPLIT_CONTROL
+#define EXPERIMENTAL_NYQUIST_SPLIT_CONTROL
 
 // Paul Licameli (PRL) 16 Apr 2015
-//Support for scrubbing in the AudioIO engine, without calls to it
+// Support for scrubbing in the AudioIO engine, without calls to it
 #define EXPERIMENTAL_SCRUBBING_SUPPORT
    
 // The following enable parts of the scrubbing user interface.
@@ -181,12 +181,27 @@
 // You must define EXPERIMENTAL_SCRUBBING_BASIC if you enable this:
 #define EXPERIMENTAL_SCRUBBING_SCROLL_WHEEL
 
+// Paul Licameli (PRL) 24 May 2015
+// Allow scrolling up to one half of a screenful beyond either end of the project,
+// if you turn on the appropriate Tracks preference.
+// This allows smooth-scrolling scrub to work more reasonably at the ends.
+#define EXPERIMENTAL_SCROLLING_LIMITS
+
+// Paul Licameli (PRL) 28 May 2015
+// Draw negative numbers on the time ruler in a different color, when
+// scrolling past zero is enabled. Perhaps that lessens confusion.
+#define EXPERIMENTAL_TWO_TONE_TIME_RULER
 
 // Define to include crash reporting
 #define EXPERIMENTAL_CRASH_REPORT
 #if !defined(wxUSE_DEBUGREPORT) || !wxUSE_DEBUGREPORT
 #undef EXPERIMENTAL_CRASH_REPORT
 #endif
+
+// Paul Licameli (PRL) 31 May 2015
+// Zero-padding factor for spectrograms can smooth the display of spectrograms by
+// interpolating in frequency domain.
+#define EXPERIMENTAL_ZERO_PADDED_SPECTROGRAMS
 
 
 #endif

@@ -29,6 +29,7 @@ class wxHashTable;
 
 class Track;
 class WaveTrack;
+class WaveTrackCache;
 class WaveClip;
 class NoteTrack;
 class LabelTrack;
@@ -72,7 +73,7 @@ class AUDACITY_DLL_API TrackArtist {
    int GetSpectrumMaxFreq(int deffreq);
    int GetSpectrumLogMinFreq(int deffreq);
    int GetSpectrumLogMaxFreq(int deffreq);
-   int GetSpectrumWindowSize();
+   int GetSpectrumWindowSize(bool includeZeroPadding);
 
 #ifdef EXPERIMENTAL_FFT_SKIP_POINTS
    int GetSpectrumFftSkipPoints();
@@ -141,7 +142,7 @@ class AUDACITY_DLL_API TrackArtist {
                          bool drawEnvelope, bool drawSamples, bool drawSliders,
                          bool dB, bool muted);
 
-   void DrawClipSpectrum(WaveTrack *track, WaveClip *clip,
+   void DrawClipSpectrum(WaveTrackCache &cache, WaveClip *clip,
                          wxDC & dc, const wxRect & r, const ViewInfo *viewInfo,
                          bool autocorrelation, bool logF);
 
@@ -183,6 +184,9 @@ class AUDACITY_DLL_API TrackArtist {
    int mMaxFreq;              // "/Spectrum/MaxFreq"
    int mMinFreq;              // "/Spectrum/MinFreq"
    int mWindowSize;           // "/Spectrum/FFTSize"
+#ifdef EXPERIMENTAL_ZERO_PADDED_SPECTROGRAMS
+   int mZeroPaddingFactor;    // "/Spectrum/ZeroPaddingFactor"
+#endif
    bool mIsGrayscale;         // "/Spectrum/Grayscale"
    bool mbShowTrackNameInWaveform;  // "/GUI/ShowTrackNameInWaveform"
 

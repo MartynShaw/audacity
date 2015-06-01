@@ -31,7 +31,8 @@
 
 typedef enum
 {
-   PluginTypeNone,
+   PluginTypeNone = -1,          // 2.1.0 placeholder entries...not used by 2.1.1 or greater
+   PluginTypeStub,               // Used for plugins that have not yet been registered
    PluginTypeEffect,
    PluginTypeExporter,
    PluginTypeImporter,
@@ -55,16 +56,16 @@ public:
    // All plugins
 
    // These return untranslated strings
+   const wxString & GetID() const;
    const wxString & GetProviderID() const;
    const wxString & GetPath() const;
    const wxString & GetSymbol() const;
 
-   // These return translated strings (if available)
-   const wxString & GetID() const;
-   wxString GetName() const;
-   wxString GetVersion() const;
-   wxString GetVendor() const;
-   wxString GetDescription() const;
+   // These return translated strings (if available and if requested)
+   wxString GetName(bool translate = true) const;
+   wxString GetVersion(bool translate = true) const;
+   wxString GetVendor(bool translate = true) const;
+   wxString GetDescription(bool translate = true) const;
    bool IsEnabled() const;
    bool IsValid() const;
 
@@ -156,21 +157,12 @@ private:
 //
 ///////////////////////////////////////////////////////////////////////////////
 
-WX_DECLARE_STRING_HASH_MAP(wxArrayString, ArrayStringMap);
-
-//WX_DECLARE_STRING_HASH_MAP(PluginDescriptor, PluginMap);
 typedef std::map<PluginID, PluginDescriptor> PluginMap;
 
 typedef wxArrayString PluginIDList;
 
+class ProviderMap;
 class PluginRegistrationDialog;
-
-enum eItemsToUpdate {
-   kCHECK_ALL,
-   kJUST_STANDARD_EFFECTS,
-   kPROMPT_TO_ADD_EFFECTS
-};
-
 
 class PluginManager : public PluginManagerInterface
 {
@@ -179,6 +171,8 @@ public:
    virtual ~PluginManager();
 
    // PluginManagerInterface implementation
+
+   virtual bool IsPluginRegistered(const PluginID & ID);
 
    virtual const PluginID & RegisterPlugin(ModuleInterface *module);
    virtual const PluginID & RegisterPlugin(ModuleInterface *provider, EffectIdentInterface *effect);
@@ -252,9 +246,6 @@ public:
    const PluginDescriptor *GetFirstPluginForEffectType(EffectType type);
    const PluginDescriptor *GetNextPluginForEffectType(EffectType type);
 
-   bool IsRegistered(const PluginID & ID);
-   void RegisterPlugin(const wxString & type, const wxString & path);
-
    bool IsPluginEnabled(const PluginID & ID);
    void EnablePlugin(const PluginID & ID, bool enable);
 
@@ -263,20 +254,21 @@ public:
    // Returns translated string
    wxString GetName(const PluginID & ID);
    IdentInterface *GetInstance(const PluginID & ID);
-   void SetInstance(const PluginID & ID, IdentInterface *instance);  // TODO: Remove after conversion
 
-   // For builtin effects
+   void CheckForUpdates();
+
+   bool ShowManager(wxWindow *parent, EffectType type = EffectTypeNone);
+
+   // Here solely for the purpose of Nyquist Workbench until
+   // a better solution is devised.
    const PluginID & RegisterPlugin(EffectIdentInterface *effect);
-   void CheckForUpdates(eItemsToUpdate UpdateWhat=kCHECK_ALL);
+   void UnregisterPlugin(const PluginID & ID);
 
 private:
    void Load();
    void LoadGroup(PluginType type);
    void Save();
    void SaveGroup(PluginType type);
-
-   void DisableMissing();
-   wxArrayString IsNewOrUpdated(const wxArrayString & paths);
 
    PluginDescriptor & CreatePlugin(const PluginID & id, IdentInterface *ident, PluginType type);
 

@@ -62,6 +62,7 @@ class EffectPlugs;
 
 class TrackPanel;
 class FreqWindow;
+class ContrastDialog;
 
 // toolbar classes
 class ControlToolBar;
@@ -303,7 +304,6 @@ class AUDACITY_DLL_API AudacityProject:  public wxFrame,
    void Zoom(double level);
    void Rewind(bool shift);
    void SkipEnd(bool shift);
-   void SetStop(bool bStopped);
    void EditByLabel( WaveTrack::EditFunction action, bool bSyncLockedTracks );
    void EditClipboardByLabel( WaveTrack::EditDestFunction action );
    bool IsSyncLocked();
@@ -346,6 +346,9 @@ class AUDACITY_DLL_API AudacityProject:  public wxFrame,
    void FixScrollbars();
 
    void SafeDisplayStatusMessage(const wxChar *msg);
+
+   double ScrollingLowerBoundTime() const;
+   void SetHorizontalThumb(double scrollto);
 
    // TrackPanel access
    virtual wxSize GetTPTracksUsableArea();
@@ -393,6 +396,8 @@ class AUDACITY_DLL_API AudacityProject:  public wxFrame,
 
    LyricsWindow* GetLyricsWindow() { return mLyricsWindow; }
    MixerBoard* GetMixerBoard() { return mMixerBoard; }
+
+   wxStatusBar* GetStatusBar() { return mStatusBar; }
 
    // SelectionBarListener callback methods
 
@@ -451,6 +456,7 @@ class AUDACITY_DLL_API AudacityProject:  public wxFrame,
 
  private:
 
+   void OnCapture(wxCommandEvent & evt);
    void ClearClipboard();
    void InitialState();
    void ModifyState(bool bWantsAutoSave);    // if true, writes auto-save file. Should set only if you really want the state change restored after
@@ -536,6 +542,7 @@ class AUDACITY_DLL_API AudacityProject:  public wxFrame,
    MixerBoardFrame* mMixerBoardFrame;
 
    FreqWindow *mFreqWindow;
+   ContrastDialog *mContrastDialog;
 
    // dialog for missing alias warnings
    wxDialog            *mAliasMissingWarningDialog;
@@ -571,6 +578,9 @@ class AUDACITY_DLL_API AudacityProject:  public wxFrame,
    bool mNormalizeOnLoad;  //lda
    bool mShowId3Dialog; //lda
    bool mEmptyCanBeDirty;
+
+   bool mScrollBeyondZero;
+
    bool mSelectAllOnNone;
 
    bool mIsSyncLocked;
@@ -620,6 +630,9 @@ class AUDACITY_DLL_API AudacityProject:  public wxFrame,
    bool mMenuClose;
 
    bool mbInitializingScrollbar;
+
+   // Flag that we're recoding.
+   bool mIsCapturing;
 
    DECLARE_EVENT_TABLE()
 };

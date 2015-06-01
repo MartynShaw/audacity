@@ -53,6 +53,7 @@ public:
    // Effect implementation
 
    virtual bool Init();
+   virtual void Preview(bool dryOnly);
    virtual void PopulateOrExchange(ShuttleGui & S);
    virtual bool TransferDataToWindow();
    virtual bool TransferDataFromWindow();
@@ -67,11 +68,12 @@ private:
    void CheckClip();
 
 private:
-   float mPeak;
+   double mPeak;
 
-   float mRatio;
-   float mAmp;
-   float mNewPeak;
+   double mRatio;
+   double mRatioClip;   // maximum value of mRatio which does not cause clipping
+   double mAmp;
+   double mNewPeak;
    bool mCanClip;
 
    wxSlider *mAmpS;

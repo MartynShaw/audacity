@@ -516,6 +516,11 @@ bool NyquistEffect::Process()
       mProps += wxString::Format(wxT("(putprop '*PROJECT* %d 'MIDITRACKS)\n"), numMidi);
       mProps += wxString::Format(wxT("(putprop '*PROJECT* %d 'TIMETRACKS)\n"), numTime);
 
+      double previewLen = 6.0;
+      gPrefs->Read(wxT("/AudioIO/EffectsPreviewLen"), &previewLen);
+      mProps += wxString::Format(wxT("(putprop '*PROJECT* (float %s) 'PREVIEW-DURATION)\n"),
+                                 Internat::ToString(previewLen).c_str());
+
       SelectedTrackListOfKindIterator sel(Track::Wave, mOutputTracks);
       int numChannels = 0;
       for (WaveTrack *t = (WaveTrack *) sel.First(); t; t = (WaveTrack *) sel.Next()) {
@@ -678,6 +683,10 @@ bool NyquistEffect::ShowInterface(wxWindow *parent, bool forceModal)
    effect.mDebug = (mUIResultID == eDebugID);
 
    SelectedRegion region(mT0, mT1);
+#ifdef EXPERIMENTAL_SPECTRAL_EDITING
+   region.setF0(mF0);
+   region.setF1(mF1);
+#endif
    return effect.DoEffect(parent,
                           mProjectRate,
                           mTracks,
@@ -771,6 +780,8 @@ bool NyquistEffect::ProcessOne()
                case WaveTrack::WaveformDBDisplay: view = wxT("\"Waveform (dB)\""); break;
                case WaveTrack::SpectrumDisplay: view = wxT("\"Spectrogram\""); break;
                case WaveTrack::SpectrumLogDisplay: view = wxT("\"Spectrogram log(f)\""); break;
+               case WaveTrack::SpectralSelectionDisplay: view = wxT("\"Spectral Selection\""); break;
+               case WaveTrack::SpectralSelectionLogDisplay: view = wxT("\"Spectral Selection log(f)\""); break;
                case WaveTrack::PitchDisplay: view = wxT("\"Pitch (EAC)\""); break;
                default: view = wxT("NIL"); break;
             }
@@ -905,8 +916,7 @@ bool NyquistEffect::ProcessOne()
    }
 
    if (mIsSal) {
-      wxString str = mCmd;
-      EscapeString(str);
+      wxString str = EscapeString(mCmd);
       // this is tricky: we need SAL to call main so that we can get a
       // SAL traceback in the event of an error (sal-compile catches the
       // error and calls sal-error-output), but SAL does not return values.
@@ -1167,6 +1177,12 @@ wxArrayString NyquistEffect::ParseChoice(const NyqControl & ctrl)
 
    return choices;
 }
+
+void NyquistEffect::RedirectOutput()
+{
+   mRedirectOutput = true;
+}
+
 void NyquistEffect::SetCommand(wxString cmd)
 {
    mExternal = true;
@@ -1255,10 +1271,10 @@ void NyquistEffect::Parse(wxString line)
       return;
    }
 
-   // As of version 4 plugins ";nyquist plug-in" is depricated in favour of ";nyquist plugin".
-   // The hyphenated version must be maintained while we support plugin versions < 4.
+   // Consistency decission is for "plug-in" as the correct spelling
+   // "plugin" is allowed as an undocumented convenience.
    if (len == 2 && tokens[0] == wxT("nyquist") &&
-      (tokens[1] == wxT("plugin") || tokens[1] == wxT("plug-in"))) {
+      (tokens[1] == wxT("plug-in") || tokens[1] == wxT("plugin"))) {
       mOK = true;
       return;
    }
@@ -1346,6 +1362,15 @@ void NyquistEffect::Parse(wxString line)
    if (len >= 2 && tokens[0] == wxT("preview")) {
       if (tokens[1] == wxT("enabled") || tokens[1] == wxT("true")) {
          mEnablePreview = true;
+         SetLinearEffectFlag(false);
+      }
+      else if (tokens[1] == wxT("linear")) {
+         mEnablePreview = true;
+         SetLinearEffectFlag(true);
+      }
+      else if (tokens[1] == wxT("selection")) {
+         mEnablePreview = true;
+         SetPreviewFullSelectionFlag(true);
       }
       else if (tokens[1] == wxT("disabled") || tokens[1] == wxT("false")) {
          mEnablePreview = false;
@@ -1489,7 +1514,7 @@ bool NyquistEffect::ParseProgram(wxInputStream & stream)
          {
             mIsSal = false;
          }
-         else if (line.MakeUpper().Find(wxT("RETURN")) != wxNOT_FOUND)
+         else if (line.Upper().Find(wxT("RETURN")) != wxNOT_FOUND)
          {
             mIsSal = true;
          }
@@ -1923,12 +1948,12 @@ void NyquistEffect::OnLoad(wxCommandEvent & WXUNUSED(evt))
       }
    }
 
-   wxFileDialog dlog(mUIParent,
-                     _("Load Nyquist script"),
-                     mFileName.GetPath(),
-                     wxEmptyString,
-                     _("Nyquist scripts (*.ny)|*.ny|Lisp scripts (*.lsp)|*.lsp|Text files (*.txt)|*.txt|All files|*"),
-                     wxFD_OPEN | wxRESIZE_BORDER);
+   FileDialog dlog(mUIParent,
+                   _("Load Nyquist script"),
+                   mFileName.GetPath(),
+                   wxEmptyString,
+                   _("Nyquist scripts (*.ny)|*.ny|Lisp scripts (*.lsp)|*.lsp|Text files (*.txt)|*.txt|All files|*"),
+                   wxFD_OPEN | wxRESIZE_BORDER);
 
    if (dlog.ShowModal() != wxID_OK)
    {
@@ -1945,12 +1970,12 @@ void NyquistEffect::OnLoad(wxCommandEvent & WXUNUSED(evt))
 
 void NyquistEffect::OnSave(wxCommandEvent & WXUNUSED(evt))
 {
-   wxFileDialog dlog(mUIParent,
-                     _("Save Nyquist script"),
-                     mFileName.GetPath(),
-                     mFileName.GetFullName(),
-                     _("Nyquist scripts (*.ny)|*.ny|Lisp scripts (*.lsp)|*.lsp|All files|*"),
-                     wxFD_SAVE | wxFD_OVERWRITE_PROMPT | wxRESIZE_BORDER);
+   FileDialog dlog(mUIParent,
+                   _("Save Nyquist script"),
+                   mFileName.GetPath(),
+                   mFileName.GetFullName(),
+                   _("Nyquist scripts (*.ny)|*.ny|Lisp scripts (*.lsp)|*.lsp|All files|*"),
+                   wxFD_SAVE | wxFD_OVERWRITE_PROMPT | wxRESIZE_BORDER);
 
    if (dlog.ShowModal() != wxID_OK)
    {
@@ -2038,6 +2063,8 @@ NyquistOutputDialog::NyquistOutputDialog(wxWindow * parent, wxWindowID id,
                                        wxString message)
 :  wxDialog(parent, id, title)
 {
+   SetName(GetTitle());
+
    wxBoxSizer *mainSizer = new wxBoxSizer(wxVERTICAL);
    wxBoxSizer *hSizer;
    wxButton   *button;

@@ -9,7 +9,7 @@
 *******************************************************************//**
 
 \class EffectStereoToMono
-\brief An Effect.
+\brief An Effect to convert stereo to mono.
 
 *//*******************************************************************/
 
@@ -46,7 +46,7 @@ wxString EffectStereoToMono::GetDescription()
 EffectType EffectStereoToMono::GetType()
 {
    // Really EffectTypeProcess, but this prevents it from showing in the Effect Menu
-   return EffectTypeNone;
+   return EffectTypeHidden;
 }
 
 bool EffectStereoToMono::IsInteractive()

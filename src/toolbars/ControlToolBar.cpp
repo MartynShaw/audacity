@@ -46,6 +46,7 @@
 #include <wx/event.h>
 #include <wx/image.h>
 #include <wx/intl.h>
+#include <wx/statusbr.h>
 #include <wx/timer.h>
 #endif
 #include <wx/tooltip.h>
@@ -99,6 +100,12 @@ ControlToolBar::ControlToolBar()
 
    mSizer = NULL;
    mCutPreviewTracks = NULL;
+
+   // strings for status bar
+   mStatePlay = _("Playing");
+   mStateStop = _("Stopped");
+   mStateRecord = _("Recording");
+   mStatePause = _("Paused");
 }
 
 ControlToolBar::~ControlToolBar()
@@ -433,6 +440,7 @@ void ControlToolBar::SetPlay(bool down, bool looped, bool cutPreview)
       mPlay->SetAlternateIdx(0);
    }
    EnableDisableButtons();
+   UpdateStatusBar();
 }
 
 void ControlToolBar::SetStop(bool down)
@@ -570,8 +578,8 @@ int ControlToolBar::PlayPlayRegion(const SelectedRegion &selectedRegion,
       if (backwards)
          std::swap(t0, t1);
 
-      t0 = wxMax(t0, 0.0);
-      t1 = wxMin(t1, latestEnd);
+      t0 = std::max(0.0, std::min(t0, latestEnd));
+      t1 = std::max(0.0, std::min(t1, latestEnd));
 
       if (backwards)
          std::swap(t0, t1);
@@ -714,11 +722,13 @@ void ControlToolBar::OnPlay(wxCommandEvent & WXUNUSED(evt))
    if (p) p->TP_DisplaySelection();
 
    PlayDefault();
+   UpdateStatusBar();
 }
 
 void ControlToolBar::OnStop(wxCommandEvent & WXUNUSED(evt))
 {
    StopPlaying();
+   UpdateStatusBar();
 }
 
 void ControlToolBar::PlayDefault()
@@ -972,11 +982,19 @@ void ControlToolBar::OnRecord(wxCommandEvent &evt)
          SetRecord(false);
       }
    }
+   UpdateStatusBar();
 }
 
 
 void ControlToolBar::OnPause(wxCommandEvent & WXUNUSED(evt))
 {
+#ifdef EXPERIMENTAL_SCRUBBING_SUPPORT
+   if (gAudioIO->IsScrubbing())
+      // Pausing does not make sense.  Force the button
+      // to pop up below.
+      mPaused = true;
+#endif
+
    if(mPaused)
    {
       mPause->PopUp();
@@ -989,6 +1007,7 @@ void ControlToolBar::OnPause(wxCommandEvent & WXUNUSED(evt))
    }
 
    gAudioIO->SetPaused(mPaused);
+   UpdateStatusBar();
 }
 
 void ControlToolBar::OnRewind(wxCommandEvent & WXUNUSED(evt))
@@ -1060,5 +1079,53 @@ void ControlToolBar::ClearCutPreviewTracks()
       delete mCutPreviewTracks;
       mCutPreviewTracks = NULL;
    }
+}
+
+// works out the width of the field in the status bar needed for the state (eg play, record pause)
+int ControlToolBar::WidthForStatusBar()
+{
+   AudacityProject* p = GetActiveProject();
+   if (!p)
+      return 100;  // dummy value to keep things happy before the project is fully created
+
+   wxStatusBar* sb = p->GetStatusBar();
+   int xMax = 0;
+   int x, y;
+
+   sb->GetTextExtent(mStatePlay + wxT(" ") + mStatePause + wxT("."), &x, &y);
+   if (x > xMax)
+      xMax = x;
+
+   sb->GetTextExtent(mStateStop + wxT(" ") + mStatePause + wxT("."), &x, &y);
+   if (x > xMax)
+      xMax = x;
+
+   sb->GetTextExtent(mStateRecord + wxT(" ") + mStatePause + wxT("."), &x, &y);
+   if (x > xMax)
+      xMax = x;
+
+   return xMax + 30;    // added constant needed because xMax isn't large enough for some reason, plus some space.
+}
+
+void ControlToolBar::UpdateStatusBar()
+{
+   wxString state;
+
+   if (mPlay->IsDown())
+      state = mStatePlay;
+   else if (mRecord->IsDown())
+      state = mStateRecord;
+   else
+      state = mStateStop;
+
+   if (mPause->IsDown())
+   {
+      state.Append(wxT(" "));
+      state.Append(mStatePause);
+   }
+
+   state.Append(wxT("."));
+
+   GetActiveProject()->GetStatusBar()->SetStatusText(state);
 }
 

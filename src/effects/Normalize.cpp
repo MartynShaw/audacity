@@ -10,7 +10,7 @@
 *******************************************************************//**
 
 \class EffectNormalize
-\brief An Effect.
+\brief An Effect to bring the peak level up to a chosen level.
 
 *//*******************************************************************/
 
@@ -33,7 +33,7 @@
 // Define keys, defaults, minimums, and maximums for the effect parameters
 //
 //     Name       Type     Key                        Def      Min      Max   Scale
-Param( Level,     double,  XO("Level"),               0.0,     -145.0,  0.0,  1  );
+Param( Level,     double,  XO("Level"),               -1.0,    -145.0,  0.0,  1  );
 Param( RemoveDC,  bool,    XO("RemoveDcOffset"),      true,    false,   true, 1  );
 Param( ApplyGain, bool,    XO("ApplyGain"),           true,    false,   true, 1  );
 Param( StereoInd, bool,    XO("StereoIndependent"),   false,   false,   true, 1  );
@@ -49,6 +49,8 @@ EffectNormalize::EffectNormalize()
    mDC = DEF_RemoveDC;
    mGain = DEF_ApplyGain;
    mStereoInd = DEF_StereoInd;
+
+   SetLinearEffectFlag(false);
 }
 
 EffectNormalize::~EffectNormalize()

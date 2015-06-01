@@ -50,6 +50,7 @@ simplifies construction of menu items.
 #include <wx/utils.h>
 
 #include "FreqWindow.h"
+#include "effects/Contrast.h"
 #include "TrackPanel.h"
 
 #include "Project.h"
@@ -82,6 +83,7 @@ simplifies construction of menu items.
 #include "NoteTrack.h"
 #endif // USE_MIDI
 #include "Tags.h"
+#include "TimeTrack.h"
 #include "Mix.h"
 #include "AboutDialog.h"
 #include "Benchmark.h"
@@ -109,7 +111,6 @@ simplifies construction of menu items.
 #include "TimerRecordDialog.h"
 #include "SoundActivatedRecord.h"
 #include "LabelDialog.h"
-#include "effects/Contrast.h"
 
 #include "FileDialog.h"
 #include "SplashDialog.h"
@@ -844,7 +845,7 @@ void AudacityProject::CreateMenusAndCommands()
 
    c->BeginSubMenu(_("Add &New"));
 
-   c->AddItem(wxT("NewAudioTrack"),  _("&Audio Track"), FN(OnNewWaveTrack), wxT("Ctrl+Shift+N"));
+   c->AddItem(wxT("NewMonoTrack"),  _("&Mono Track"), FN(OnNewWaveTrack), wxT("Ctrl+Shift+N"));
    c->AddItem(wxT("NewStereoTrack"), _("&Stereo Track"), FN(OnNewStereoTrack));
    c->AddItem(wxT("NewLabelTrack"),  _("&Label Track"), FN(OnNewLabelTrack));
    c->AddItem(wxT("NewTimeTrack"),   _("&Time Track"), FN(OnNewTimeTrack));
@@ -984,6 +985,10 @@ void AudacityProject::CreateMenusAndCommands()
                        EffectTypeGenerate,
                        AudioIONotBusyFlag,
                        AudioIONotBusyFlag);
+#ifdef EXPERIMENTAL_EFFECT_MANAGEMENT
+   c->AddSeparator();
+   c->AddItem(wxT("ManageGenerators"), _("More..."), FN(OnManageGenerators));
+#endif
 
    c->EndMenu();
 
@@ -1010,12 +1015,11 @@ void AudacityProject::CreateMenusAndCommands()
    PopulateEffectsMenu(c,
                        EffectTypeProcess,
                        AudioIONotBusyFlag | TimeSelectedFlag | WaveTracksSelectedFlag,
-                       TracksExistFlag | IsRealtimeNotActiveFlag);
+                       IsRealtimeNotActiveFlag);
 #ifdef EXPERIMENTAL_EFFECT_MANAGEMENT
    c->AddSeparator();
    // We could say Manage Effects on the menu, but More... is more intuitive.
-   c->AddItem(wxT("ManageEffects"), _("&More..."), FN(OnManageEffects));
-
+   c->AddItem(wxT("ManageEffects"), _("More..."), FN(OnManageEffects));
 #endif
 
    c->EndMenu();
@@ -1036,7 +1040,11 @@ void AudacityProject::CreateMenusAndCommands()
    PopulateEffectsMenu(c,
                        EffectTypeAnalyze,
                        AudioIONotBusyFlag | TimeSelectedFlag | WaveTracksSelectedFlag,
-                       TracksExistFlag | IsRealtimeNotActiveFlag);
+                       IsRealtimeNotActiveFlag);
+#ifdef EXPERIMENTAL_EFFECT_MANAGEMENT
+   c->AddSeparator();
+   c->AddItem(wxT("ManageAnalyzers"), _("More..."), FN(OnManageAnalyzers));
+#endif
 
    c->EndMenu();
 
@@ -1114,15 +1122,21 @@ void AudacityProject::CreateMenusAndCommands()
    c->AddCommand(wxT("Stop"), _("Stop"), FN(OnStop),
                  AudioIOBusyFlag,
                  AudioIOBusyFlag);
-   c->AddCommand(wxT("PlayOneSec"), _("Play One Second"), FN(OnPlayOneSecond), wxT("1"));
-   c->AddCommand(wxT("PlayToSelection"),_("Play To Selection"), FN(OnPlayToSelection), wxT("B"));
+   c->AddCommand(wxT("PlayOneSec"), _("Play One Second"), FN(OnPlayOneSecond), wxT("1"),
+                 CaptureNotBusyFlag,
+                 CaptureNotBusyFlag);
+   c->AddCommand(wxT("PlayToSelection"),_("Play To Selection"), FN(OnPlayToSelection), wxT("B"),
+                 CaptureNotBusyFlag,
+                 CaptureNotBusyFlag);
    c->AddCommand(wxT("PlayBeforeSelectionStart"),_("Play Before Selection Start"), FN(OnPlayBeforeSelectionStart), wxT("Shift+F5"));
    c->AddCommand(wxT("PlayAfterSelectionStart"),_("Play After Selection Start"), FN(OnPlayAfterSelectionStart), wxT("Shift+F6"));
    c->AddCommand(wxT("PlayBeforeSelectionEnd"),_("Play Before Selection End"), FN(OnPlayBeforeSelectionEnd), wxT("Shift+F7"));
    c->AddCommand(wxT("PlayAfterSelectionEnd"),_("Play After Selection End"), FN(OnPlayAfterSelectionEnd), wxT("Shift+F8"));
    c->AddCommand(wxT("PlayBeforeAndAfterSelectionStart"),_("Play Before and After Selection Start"), FN(OnPlayBeforeAndAfterSelectionStart), wxT("Ctrl+Shift+F5"));
    c->AddCommand(wxT("PlayBeforeAndAfterSelectionEnd"),_("Play Before and After Selection End"), FN(OnPlayBeforeAndAfterSelectionEnd), wxT("Ctrl+Shift+F7"));
-   c->AddCommand(wxT("PlayCutPreview"), _("Play Cut Preview"), FN(OnPlayCutPreview), wxT("C"));
+   c->AddCommand(wxT("PlayCutPreview"), _("Play Cut Preview"), FN(OnPlayCutPreview), wxT("C"),
+                 CaptureNotBusyFlag,
+                 CaptureNotBusyFlag);
 
    c->AddCommand(wxT("SelStart"), _("Selection to Start"), FN(OnSelToStart), wxT("Shift+Home"));
    c->AddCommand(wxT("SelEnd"), _("Selection to End"), FN(OnSelToEnd), wxT("Shift+End"));
@@ -1220,6 +1234,8 @@ void AudacityProject::CreateMenusAndCommands()
    c->AddCommand(wxT("InputGainInc"), _("Increase recording volume"), FN(OnInputGainInc));
    c->AddCommand(wxT("InputGainDec"), _("Decrease recording volume"), FN(OnInputGainDec));
 
+   c->SetDefaultFlags(CaptureNotBusyFlag, CaptureNotBusyFlag);
+
    c->AddCommand(wxT("PlayAtSpeed"), _("Play at speed"), FN(OnPlayAtSpeed));
    c->AddCommand(wxT("PlayAtSpeedLooped"), _("Loop Play at speed"), FN(OnPlayAtSpeedLooped));
    c->AddCommand(wxT("PlayAtSpeedCutPreview"), _("Play Cut Preview at speed"), FN(OnPlayAtSpeedCutPreview));
@@ -1247,7 +1263,10 @@ void AudacityProject::PopulateEffectsMenu(CommandManager* c,
    const PluginDescriptor *plug = pm.GetFirstPluginForEffectType(type);
    while (plug)
    {
-      if (plug->IsEffectDefault())
+      if ( !plug->IsEnabled() ){
+         ;// don't add to menus!
+      }
+      else if (plug->IsEffectDefault())
       {
          defplugs.Add(plug);
       }
@@ -1783,6 +1802,9 @@ wxUint32 AudacityProject::GetUpdateFlags()
 
    if (!EffectManager::Get().RealtimeIsActive())
       flags |= IsRealtimeNotActiveFlag;
+
+      if (!mIsCapturing)
+      flags |= CaptureNotBusyFlag;
 
    return flags;
 }
@@ -2781,7 +2803,7 @@ void AudacityProject::NextWindow()
    }
 
    // Ran out of siblings, so make the current project active
-   if (!iter)
+   if (!iter && IsEnabled())
    {
       w = this;
    }
@@ -2830,7 +2852,7 @@ void AudacityProject::PrevWindow()
    }
 
    // Ran out of siblings, so make the current project active
-   if (!iter)
+   if (!iter && IsEnabled())
    {
       w = this;
    }
@@ -3205,10 +3227,6 @@ bool AudacityProject::OnEffect(const PluginID & ID, int flags)
          mTracks->Add(newTrack);
          newTrack->SetSelected(true);
       }
-      else {
-         wxMessageBox(_("You must select a track first."));
-         return false;
-      }
    }
 
    EffectManager & em = EffectManager::Get();
@@ -3280,13 +3298,47 @@ void AudacityProject::OnRepeatLastEffect(int WXUNUSED(index))
    }
 }
 
+
+
+
+void AudacityProject::OnManagePluginsMenu(EffectType type)
+{
+   if (PluginManager::Get().ShowManager(this, type))
+   {
+      for (size_t i = 0; i < gAudacityProjects.GetCount(); i++) {
+         AudacityProject *p = gAudacityProjects[i];
+
+         p->RebuildMenuBar();
+#if defined(__WXGTK__)
+         // Workaround for:
+         //
+         //   http://bugzilla.audacityteam.org/show_bug.cgi?id=458
+         //
+         // This workaround should be removed when Audacity updates to wxWidgets 3.x which has a fix.
+         wxRect r = p->GetRect();
+         p->SetSize(wxSize(1,1));
+         p->SetSize(r.GetSize());
+#endif
+      }
+   }
+}
+
+void AudacityProject::OnManageGenerators()
+{
+   OnManagePluginsMenu(EffectTypeGenerate);
+}
+
 void AudacityProject::OnManageEffects()
 {
-   //gPrefs->Write( wxT("/Plugins/Rescan"), true);
-   //gPrefs->Read(wxT("/Plugins/CheckForUpdates"), &doCheck, true);
-   PluginManager::Get().CheckForUpdates(kPROMPT_TO_ADD_EFFECTS);
-   RebuildMenuBar();
+   OnManagePluginsMenu(EffectTypeProcess);
 }
+
+void AudacityProject::OnManageAnalyzers()
+{
+   OnManagePluginsMenu(EffectTypeAnalyze);
+}
+
+
 
 void AudacityProject::OnStereoToMono(int WXUNUSED(index))
 {
@@ -4704,7 +4756,11 @@ void AudacityProject::DoNextPeakFrequency(bool up)
       WaveTrack *const wt = static_cast<WaveTrack*>(t);
       const int display = wt->GetDisplay();
       if (display == WaveTrack::SpectrumDisplay ||
-          display == WaveTrack::SpectrumLogDisplay) {
+          display == WaveTrack::SpectrumLogDisplay ||
+          display == WaveTrack::SpectralSelectionDisplay ||
+          display == WaveTrack::SpectralSelectionLogDisplay 
+          
+          ) {
          pTrack = wt;
          break;
       }
@@ -4934,7 +4990,11 @@ void AudacityProject::OnZoomNormal()
 
 void AudacityProject::OnZoomFit()
 {
-   double len = mTracks->GetEndTime();
+   const double end = mTracks->GetEndTime();
+   const double start = mScrollBeyondZero
+      ? std::min(mTracks->GetStartTime(), 0.0)
+      : 0;
+   const double len = end - start;
 
    if (len <= 0.0)
       return;
@@ -4944,7 +5004,7 @@ void AudacityProject::OnZoomFit()
    w -= 10;
 
    Zoom(w / len);
-   TP_ScrollWindow(0.0);
+   TP_ScrollWindow(start);
 }
 
 void AudacityProject::DoZoomFitV()
@@ -4997,7 +5057,11 @@ void AudacityProject::OnZoomFitV()
 
 void AudacityProject::OnZoomSel()
 {
-   if (mViewInfo.selectedRegion.isPoint())
+   const double lowerBound =
+      std::max(mViewInfo.selectedRegion.t0(), ScrollingLowerBoundTime());
+   const double denom =
+      mViewInfo.selectedRegion.t1() - lowerBound;
+   if (denom <= 0.0)
       return;
 
    // LL:  The "-1" is just a hack to get around an issue where zooming to
@@ -5006,8 +5070,7 @@ void AudacityProject::OnZoomSel()
    //      where the selected region may be scrolled off the left of the screen.
    //      I know this isn't right, but until the real rounding or 1-off issue is
    //      found, this will have to work.
-   Zoom(((mViewInfo.zoom * mViewInfo.screen) - 1) /
-        (mViewInfo.selectedRegion.t1() - mViewInfo.selectedRegion.t0()));
+   Zoom(((mViewInfo.zoom * mViewInfo.screen) - 1) / denom);
    TP_ScrollWindow(mViewInfo.selectedRegion.t0());
 }
 
@@ -5078,8 +5141,6 @@ void AudacityProject::OnPlotSpectrum()
       mFreqWindow = new FreqWindow(this, -1, _("Frequency Analysis"), where);
    }
 
-   wxCommandEvent dummy;
-   mFreqWindow->OnReplot(dummy);
    mFreqWindow->Show(true);
    mFreqWindow->Raise();
    mFreqWindow->SetFocus();
@@ -5087,7 +5148,34 @@ void AudacityProject::OnPlotSpectrum()
 
 void AudacityProject::OnContrast()
 {
-   InitContrastDialog(NULL);
+   // All of this goes away when the Contrast Dialog is converted to a module
+   if(!mContrastDialog)
+   {
+      wxPoint where;
+
+      where.x = 150;
+      where.y = 150;
+
+      mContrastDialog = new ContrastDialog(this, -1, _("Contrast Analysis (WCAG 2 compliance)"), where);
+
+      mContrastDialog->bFGset = false;
+      mContrastDialog->bBGset = false;
+   }
+
+   // Zero dialog boxes.  Do we need to do this here?
+   if( !mContrastDialog->bFGset )
+   {
+      mContrastDialog->mForegroundStartT->SetValue(0.0);
+      mContrastDialog->mForegroundEndT->SetValue(0.0);
+   }
+   if( !mContrastDialog->bBGset )
+   {
+      mContrastDialog->mBackgroundStartT->SetValue(0.0);
+      mContrastDialog->mBackgroundEndT->SetValue(0.0);
+   }
+
+   mContrastDialog->CentreOnParent();
+   mContrastDialog->Show();
 }
 
 
@@ -6313,6 +6401,7 @@ void AudacityProject::OnAudioDeviceInfo()
    wxString info = gAudioIO->GetDeviceInfo();
 
    wxDialog dlg(this, wxID_ANY, wxString(_("Audio Device Info")));
+   dlg.SetName(dlg.GetTitle());
    ShuttleGui S(&dlg, eIsCreating);
 
    wxTextCtrl *text;
@@ -6445,6 +6534,7 @@ void AudacityProject::OnResample()
    while (true)
    {
       wxDialog dlg(this, wxID_ANY, wxString(_("Resample")));
+      dlg.SetName(dlg.GetTitle());
       ShuttleGui S(&dlg, eIsCreating);
       wxString rate;
       wxArrayString rates;

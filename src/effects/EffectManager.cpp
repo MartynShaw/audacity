@@ -65,10 +65,22 @@ EffectManager::~EffectManager()
 
 // Here solely for the purpose of Nyquist Workbench until
 // a better solution is devised.
-void EffectManager::RegisterEffect(Effect *f)
+const PluginID & EffectManager::RegisterEffect(Effect *f)
 {
-   // This will go away after all effects have been converted
-   mEffects[PluginManager::Get().RegisterPlugin(f)] = f;
+   const PluginID & ID = PluginManager::Get().RegisterPlugin(f);
+
+   mEffects[ID] = f;
+
+   return ID;
+}
+
+// Here solely for the purpose of Nyquist Workbench until
+// a better solution is devised.
+void EffectManager::UnregisterEffect(const PluginID & ID)
+{
+   PluginID id = ID;
+   PluginManager::Get().UnregisterPlugin(id);
+   mEffects.erase(id);
 }
 
 bool EffectManager::DoEffect(const PluginID & ID,
@@ -147,6 +159,18 @@ wxString EffectManager::GetEffectDescription(const PluginID & ID)
    return wxEmptyString;
 }
 
+bool EffectManager::IsHidden(const PluginID & ID)
+{
+   Effect *effect = GetEffect(ID);
+
+   if (effect)
+   {
+      return effect->IsHidden();
+   }
+
+   return false;
+}
+
 bool EffectManager::SupportsAutomation(const PluginID & ID)
 {
    const PluginDescriptor *plug =  PluginManager::Get().GetPlugin(ID);
@@ -167,6 +191,13 @@ wxString EffectManager::GetEffectParameters(const PluginID & ID)
       wxString parms;
 
       effect->GetAutomationParameters(parms);
+
+      // Some effects don't have automatable parameters and will not return
+      // anything, so try to get the active preset (current or factory).
+      if (parms.IsEmpty())
+      {
+         parms = GetDefaultPreset(ID);
+      }
 
       return parms;
    }
@@ -668,6 +699,12 @@ int EffectManager::GetRealtimeLatency()
 
 Effect *EffectManager::GetEffect(const PluginID & ID)
 {
+   // Must have a "valid" ID
+   if (ID.IsEmpty())
+   {
+      return NULL;
+   }
+
    // TODO: This is temporary and should be redone when all effects are converted
    if (mEffects.find(ID) == mEffects.end())
    {

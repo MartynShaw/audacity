@@ -14,7 +14,7 @@
 *******************************************************************//**
 
 \class EffectPhaser
-\brief An Effect
+\brief An Effect that changes frequencies in a time varying manner.
 
 *//*******************************************************************/
 
@@ -82,6 +82,8 @@ EffectPhaser::EffectPhaser()
    mPhase = DEF_Phase;
    mDepth = DEF_Depth;
    mFeedback = DEF_Feedback;
+
+   SetLinearEffectFlag(true);
 }
 
 EffectPhaser::~EffectPhaser()
