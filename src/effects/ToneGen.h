@@ -66,6 +66,9 @@ private:
    sampleCount mSample;
    double mPositionInCycles;
 
+   // we integrate some impulses to create a non-aliassed squarewave efficiently
+   double fInt;
+
    // If we made these static variables,
    // Tone and Chirp would share the same parameters.
    int mWaveform;

@@ -146,6 +146,8 @@ bool EffectToneGen::ProcessInitialize(sampleCount WXUNUSED(totalLen), ChannelNam
    mPositionInCycles = 0.0;
    mSample = 0;
 
+   fInt = 0.0;
+
    return true;
 }
 
@@ -203,17 +205,60 @@ sampleCount EffectToneGen::ProcessBlock(float **WXUNUSED(inBlock), float **outBl
       case kSawtooth:
          f = (2.0 * modf(mPositionInCycles / mSampleRate + 0.5, &throwaway)) - 1.0;
          break;
-      case kSquareNoAlias:    // Good down to 110Hz @ 44100Hz sampling.
+      case kSquareNoAlias:
+//#define NEWSQUARENOALIAS 1
+#ifdef NEWSQUARENOALIAS
+         // new method which is more complete at low frequencies, and less efficient at high frequencies.  We need a combination of the two.
+         int N = floor((mSampleRate/2)/BlendedFrequency);
+         double norm = sqrt((2./N)*BlendedFrequency/mSampleRate);
+         double pit = M_PI * mPositionInCycles / mSampleRate;
+         double w = cos(N * pit);
+         double v = sin((N+1) * pit);
+         double u = sin(pit);
+         double x, temp;
+         if( !(N&1) )   // N even
+            if( fabs(u) < 0.000001 )
+               x = N+1;
+            else
+               x = v/u;
+         else
+            if( fabs(u) < 0.000001 )
+               x = (N+1)*cos(pit);
+            else
+               x = v/u;
+         fInt += (w*x - 0.0)*norm;  // there may be a drift in the integration, this needs to be investigated
+
+         double delta = mSampleRate/2.;
+         double pit1 = M_PI * (mPositionInCycles + delta) / mSampleRate;
+         double w1 = cos(N * pit1);
+         double v1 = sin((N+1) * pit1);
+         double u1 = sin(pit1);
+         if( !(N&1) )   // N even
+            if( fabs(u1) < 0.000001 )
+               x = N+1;
+            else
+               x = v1/u1;
+         else
+            if( fabs(u1) < 0.000001 )
+               x = (N+1)*cos(pit1);
+            else
+               x = v1/u1;
+         fInt -= (w1*x - 0.0)*norm;
+         f = fInt * 2 - 1.;
+#else
+         b = (1.0 + cos((pre2PI * BlendedFrequency) / mSampleRate)) / pre4divPI;  //scaling factor for all except fundamental
          //do fundamental (k=1) outside loop
-         b = (1.0 + cos((pre2PI * BlendedFrequency) / mSampleRate)) / pre4divPI;  //scaling
          f = pre4divPI * sin(pre2PI * mPositionInCycles / mSampleRate);
          for (k = 3; (k < 200) && (k * BlendedFrequency < mSampleRate / 2.0); k += 2)
          {
             //Hanning Window in freq domain
             a = 1.0 + cos((pre2PI * k * BlendedFrequency) / mSampleRate);
+            if(i==0)
+               wxLogDebug(wxT("<point f=\"%f\" d=\"%f\"/>"),k*BlendedFrequency,20.*log10(a));
             //calc harmonic, apply window, scale to amplitude of fundamental
             f += a * sin(pre2PI * mPositionInCycles / mSampleRate * k) / (b * k);
          }
+#endif
       }
       // insert value in buffer
       buffer[i] = (float) (BlendedAmplitude * f);
