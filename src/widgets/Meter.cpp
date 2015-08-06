@@ -39,6 +39,7 @@
 *//******************************************************************/
 
 #include "../Audacity.h"
+#include "Meter.h"
 #include "../AudacityApp.h"
 
 #include <wx/defs.h>
@@ -57,15 +58,15 @@
 
 #include <math.h>
 
-#include "Meter.h"
-
 #include "../AudioIO.h"
 #include "../AColor.h"
 #include "../ImageManipulation.h"
+#include "../prefs/GUISettings.h"
 #include "../Project.h"
 #include "../toolbars/MeterToolBar.h"
 #include "../toolbars/ControlToolBar.h"
 #include "../Prefs.h"
+#include "../ShuttleGui.h"
 
 #include "../Theme.h"
 #include "../AllThemeResources.h"
@@ -366,7 +367,7 @@ Meter::~Meter()
 
 void Meter::UpdatePrefs()
 {
-   mDBRange = gPrefs->Read(wxT("/GUI/EnvdBRange"), ENV_DB_RANGE);
+   mDBRange = gPrefs->Read(ENV_DB_KEY, ENV_DB_RANGE);
 
    mMeterRefreshRate = gPrefs->Read(Key(wxT("RefreshRate")), 30);
    mGradient = gPrefs->Read(Key(wxT("Bars")), wxT("Gradient")) == wxT("Gradient");
@@ -864,7 +865,7 @@ static float ToDB(float v, float range)
 {
    double db;
    if (v > 0)
-      db = 20 * log10(fabs(v));
+      db = LINEAR_TO_DB(fabs(v));
    else
       db = -999;
    return ClipZeroToOne((db + range) / range);
@@ -995,7 +996,7 @@ void Meter::OnMeterUpdate(wxTimerEvent & WXUNUSED(event))
             }
             else {
                double decayAmount = mDecayRate * deltaT;
-               double decayFactor = pow(10.0, -decayAmount/20);
+               double decayFactor = DB_TO_LINEAR(-decayAmount);
                mBar[j].peak = floatMax(msg.peak[j],
                                        mBar[j].peak * decayFactor);
             }
@@ -2232,31 +2233,38 @@ wxAccStatus MeterAx::GetName(int WXUNUSED(childId), wxString* name)
 
       if (m->mMonitoring)
       {
-         *name += wxString::Format(_(" Monitoring "));
+         // translations of strings such as " Monitoring " did not
+         // always retain the leading space. Therefore a space has
+         // been added to ensure at least one space, and stop
+         // words from being merged
+         *name += wxT(" ") + wxString::Format(_(" Monitoring "));
       }
       else if (m->mActive)
       {
-         *name += wxString::Format(_(" Active "));
+         *name += wxT(" ") + wxString::Format(_(" Active "));
       }
 
       float peak = 0.;
+      bool clipped = false;
       for (int i = 0; i < m->mNumBars; i++)
       {
          peak = wxMax(peak, m->mBar[i].peakPeakHold);
+         if (m->mBar[i].clipping)
+            clipped = true;
       }
 
       if (m->mDB)
       {
-         *name += wxString::Format(_(" Peak %2.f dB"), (peak * m->mDBRange) - m->mDBRange);
+         *name += wxT(" ") + wxString::Format(_(" Peak %2.f dB"), (peak * m->mDBRange) - m->mDBRange);
       }
       else
       {
-         *name += wxString::Format(_(" Peak %.2f "), peak);
+         *name += wxT(" ") + wxString::Format(_(" Peak %.2f "), peak);
       }
 
-      if (m->IsClipping())
+      if (clipped)
       {
-         *name += wxString::Format(_(" Clipped "));
+         *name += wxT(" ") + wxString::Format(_(" Clipped "));
       }
    }
 

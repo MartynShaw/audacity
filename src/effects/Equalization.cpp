@@ -53,6 +53,7 @@
 
 
 #include "../Audacity.h"
+#include "Equalization.h"
 
 #include <math.h>
 #include <vector>
@@ -95,12 +96,9 @@
 #include "../xml/XMLFileReader.h"
 #include "../Theme.h"
 #include "../AllThemeResources.h"
-#include "../WaveTrack.h"
 #include "../float_cast.h"
 
 #include "FileDialog.h"
-
-#include "Equalization.h"
 
 #ifdef EXPERIMENTAL_EQ_SSE_THREADED
 #include "Equalization48x.h"
@@ -589,11 +587,11 @@ void EffectEqualization::PopulateOrExchange(ShuttleGui & S)
    szr2 = new wxBoxSizer( wxVERTICAL );
    mdBMaxSlider = new wxSlider(parent, ID_dBMax, DEF_dBMax, MIN_dBMax, MAX_dBMax,
       wxDefaultPosition, wxDefaultSize, wxSL_VERTICAL|wxSL_INVERSE);
-   szr2->Add( mdBMaxSlider, 1, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxALL, 4 );
+   szr2->Add( mdBMaxSlider, 1, wxALIGN_LEFT|wxALL, 4 );
    mdBMinSlider = new wxSlider(parent, ID_dBMin, DEF_dBMin, MIN_dBMin, MAX_dBMin,
       wxDefaultPosition, wxDefaultSize, wxSL_VERTICAL|wxSL_INVERSE);
-   szr2->Add( mdBMinSlider, 1, wxALIGN_LEFT|wxALIGN_CENTER_VERTICAL|wxALL, 4 );
-   szr1->Add( szr2, 0, wxEXPAND|wxALIGN_CENTRE|wxALL, 4 );
+   szr2->Add( mdBMinSlider, 1, wxALIGN_LEFT|wxALL, 4 );
+   szr1->Add( szr2, 0, wxEXPAND|wxALL, 4 );
 
 #if wxUSE_ACCESSIBILITY
    mdBMaxSlider->SetName(_("Max dB"));
@@ -621,7 +619,7 @@ void EffectEqualization::PopulateOrExchange(ShuttleGui & S)
    szr1->Add( szr4, 0, wxEXPAND|wxALIGN_LEFT|wxALL );
 
    mPanel = new EqualizationPanel(this, parent);
-   szr1->Add( mPanel, 1, wxEXPAND|wxALIGN_CENTRE);
+   szr1->Add( mPanel, 1, wxEXPAND);
    szr3 = new wxBoxSizer( wxVERTICAL );
    szr1->Add( szr3, 0, wxALIGN_CENTRE|wxRIGHT, 0);   //spacer for last EQ
 
@@ -648,7 +646,7 @@ void EffectEqualization::PopulateOrExchange(ShuttleGui & S)
    szr1->Add( szr5, 0, wxEXPAND|wxALIGN_LEFT|wxALL );
    szr1->Layout();
 
-   szrV->Add( szr1, 1, wxEXPAND|wxALIGN_CENTER|wxALL, 0 );
+   szrV->Add( szr1, 1, wxEXPAND|wxALL, 0 );
 
    // -------------------------------------------------------------------
    // Graphic EQ - parent gets laid out horizontally in onSize
@@ -661,7 +659,7 @@ void EffectEqualization::PopulateOrExchange(ShuttleGui & S)
       mSliders[i] = new wxSlider(parent, ID_Slider + i, 0, -20, +20,
          wxDefaultPosition, wxSize(20, 124), wxSL_VERTICAL|
          wxSL_INVERSE);
-      szrG->Add( mSliders[i], 0, wxEXPAND|wxALIGN_CENTER );
+      szrG->Add( mSliders[i], 0, wxEXPAND );
       szrG->Add(0, 0, 0); // horizontal spacer - used to put EQ sliders in correct position
       mSliders[i]->Connect(wxEVT_ERASE_BACKGROUND, wxEraseEventHandler(EffectEqualization::OnErase));
       mEQVals[i] = 0.;
@@ -1182,13 +1180,13 @@ bool EffectEqualization::CalcFilter()
    }
    mFilterFuncR[mWindowSize/2] = val1;
 
-   mFilterFuncR[0] = (float)(pow(10., mFilterFuncR[0]/20.));
+   mFilterFuncR[0] = DB_TO_LINEAR(mFilterFuncR[0]);
    for(i=1;i<mWindowSize/2;i++)
    {
-      mFilterFuncR[i] = (float)(pow(10., mFilterFuncR[i]/20.));
+      mFilterFuncR[i] = DB_TO_LINEAR(mFilterFuncR[i]);
       mFilterFuncR[mWindowSize-i]=mFilterFuncR[i];   //Fill entire array
    }
-   mFilterFuncR[i] = (float)(pow(10., mFilterFuncR[i]/20.));   //do last one
+   mFilterFuncR[i] = DB_TO_LINEAR(mFilterFuncR[i]);   //do last one
 
    //transfer to time domain to do the padding and windowing
    float *outr = new float[mWindowSize];
@@ -2773,7 +2771,7 @@ void EqualizationPanel::OnPaint(wxPaintEvent &  WXUNUSED(event))
          yF += mOutr[halfM];
          yF = fabs(yF);
          if(yF!=0.)
-            yF = 20.0*log10(yF);   //20 here as an amplitude
+            yF = LINEAR_TO_DB(yF);
          else
             yF = mEffect->mdBMin;
       }
@@ -2804,7 +2802,8 @@ void EqualizationPanel::OnPaint(wxPaintEvent &  WXUNUSED(event))
 
    memDC.SetPen(*wxBLACK_PEN);
    if( mEffect->mDraw->GetValue() )
-      mEffect->mEnvelope->DrawPoints(memDC, mEnvRect, 0.0, mEnvRect.width-1, false, mEffect->mdBMin, mEffect->mdBMax);
+      mEffect->mEnvelope->DrawPoints(memDC, mEnvRect, ZoomInfo(0.0, 1.0, mEnvRect.width-1), false,
+                                     mEffect->mdBMin, mEffect->mdBMax);
 
    dc.Blit(0, 0, mWidth, mHeight,
       &memDC, 0, 0, wxCOPY, FALSE);
@@ -2822,7 +2821,7 @@ void EqualizationPanel::OnMouseEvent(wxMouseEvent & event)
       CaptureMouse();
    }
 
-   if (mEffect->mEnvelope->MouseEvent(event, mEnvRect, 0.0, mEnvRect.width, false,
+   if (mEffect->mEnvelope->MouseEvent(event, mEnvRect, ZoomInfo(0.0, 1.0, mEnvRect.width), false,
       mEffect->mdBMin, mEffect->mdBMax))
    {
       mEffect->EnvelopeUpdated();

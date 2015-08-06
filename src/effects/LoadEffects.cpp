@@ -129,17 +129,17 @@
    EFFECT( WAHWAH,            EffectWahwah() )           \
    EFFECT( FINDCLIPPING,      EffectFindClipping() )     \
    NOISEREDUCTION_EFFECT                                 \
-   SOUNDTOUCH_EFFECTS
+   SOUNDTOUCH_EFFECTS                                    \
+   EFFECT( AUTODUCK,          EffectAutoDuck() )         \
+   EFFECT( LEVELLER,          EffectLeveller() )         \
+   EFFECT( PAULSTRETCH,       EffectPaulstretch() )      \
+   SBSMS_EFFECTS
 
 //
 // Define the list of effects that do not get autoregistered
 //
 #define EXCLUDE_LIST \
-   EFFECT( AUTODUCK,          EffectAutoDuck() )         \
-   EFFECT( LEVELLER,          EffectLeveller() )         \
-   EFFECT( PAULSTRETCH,       EffectPaulstretch() )      \
-   CLASSICFILTER_EFFECT                                  \
-   SBSMS_EFFECTS
+   CLASSICFILTER_EFFECT
 
 //
 // Define the EFFECT() macro to generate enum names
@@ -288,11 +288,11 @@ bool BuiltinEffectsModule::AutoRegisterPlugins(PluginManagerInterface & pm)
 {
    for (size_t i = 0; i < WXSIZEOF(kEffectNames); i++)
    {
-      PluginID ID(wxString(BUILTIN_EFFECT_PREFIX) + kEffectNames[i]);
+      wxString path(wxString(BUILTIN_EFFECT_PREFIX) + kEffectNames[i]);
 
-      if (!pm.IsPluginRegistered(ID))
+      if (!pm.IsPluginRegistered(path))
       {
-         RegisterPlugin(pm, ID);
+         RegisterPlugin(pm, path);
       }
    }
 

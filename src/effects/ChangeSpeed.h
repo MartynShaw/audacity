@@ -19,12 +19,11 @@
 #include <wx/string.h>
 #include <wx/textctrl.h>
 
-#include "../ShuttleGui.h"
-#include "../Track.h"
-#include "../WaveTrack.h"
 #include "../widgets/NumericTextCtrl.h"
 
 #include "Effect.h"
+
+class ShuttleGui;
 
 #define CHANGESPEED_PLUGIN_SYMBOL XO("Change Speed")
 

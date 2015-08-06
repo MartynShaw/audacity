@@ -20,16 +20,24 @@
 #include "../Audacity.h"
 #include "TracksPrefs.h"
 
+#include <algorithm>
 #include <wx/defs.h>
 
 #include "../Experimental.h"
+#include "../Prefs.h"
 #include "../ShuttleGui.h"
+#include "../WaveTrack.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TracksPrefs::TracksPrefs(wxWindow * parent)
 :  PrefsPanel(parent, _("Tracks"))
 {
+   // Bugs 1043, 1044
+   // First rewrite legacy preferences
+   gPrefs->Write(wxT("/GUI/DefaultViewModeNew"),
+      (int) WaveTrack::FindDefaultViewMode());
+
    Populate();
 }
 
@@ -48,23 +56,14 @@ void TracksPrefs::Populate()
    mSoloChoices.Add(_("None"));
 
 
-   // Keep the same order as in TrackPanel.cpp menu: OnWaveformID, OnWaveformDBID, OnSpectrumID, OnSpectrumLogID, 
-   // OnSpectralSelID, OnSpectralSelLogID, OnPitchID
-   mViewCodes.Add(0);
-   mViewCodes.Add(1);
-   mViewCodes.Add(2);
-   mViewCodes.Add(3);
-   mViewCodes.Add(4);
-   mViewCodes.Add(5);
-   mViewCodes.Add(6);
+   // Keep view choices and codes in proper correspondence --
+   // we don't display them by increasing integer values.
 
    mViewChoices.Add(_("Waveform"));
-   mViewChoices.Add(_("Waveform (dB)"));
-   mViewChoices.Add(_("Spectrogram"));
-   mViewChoices.Add(_("Spectrogram log(f)"));
-   mViewChoices.Add(_("Spectral Selection"));
-   mViewChoices.Add(_("Spectrogram Selection log(f)"));
-   mViewChoices.Add(_("Pitch (EAC)"));
+   mViewCodes.Add(int(WaveTrack::Waveform));
+
+   mViewChoices.Add(_("Spectrum"));
+   mViewCodes.Add(WaveTrack::Spectrum);
 
    //------------------------- Main section --------------------
    // Now construct the GUI itself.
@@ -92,8 +91,9 @@ void TracksPrefs::PopulateOrExchange(ShuttleGui & S)
 
       S.StartMultiColumn(2);
       {
+
          S.TieChoice(_("Default &View Mode:"),
-                     wxT("/GUI/DefaultViewMode"),
+                     wxT("/GUI/DefaultViewModeNew"),
                      0,
                      mViewChoices,
                      mViewCodes);
@@ -149,4 +149,9 @@ bool TracksPrefs::Apply()
    PopulateOrExchange(S);
 
    return true;
+}
+
+PrefsPanel *TracksPrefsFactory::Create(wxWindow *parent)
+{
+   return new TracksPrefs(parent);
 }

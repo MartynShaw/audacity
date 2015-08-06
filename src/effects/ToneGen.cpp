@@ -19,6 +19,7 @@ frequency changes smoothly during the tone.
 *//*******************************************************************/
 
 #include "../Audacity.h"
+#include "ToneGen.h"
 
 #include <math.h>
 #include <float.h>
@@ -27,10 +28,9 @@ frequency changes smoothly during the tone.
 #include <wx/valgen.h>
 
 #include "../Project.h"
+#include "../ShuttleGui.h"
 #include "../widgets/NumericTextCtrl.h"
 #include "../widgets/valnum.h"
-
-#include "ToneGen.h"
 
 enum kInterpolations
 {
@@ -316,16 +316,16 @@ bool EffectToneGen::GetAutomationParameters(EffectAutomationParameters & parms)
       parms.Write(KEY_Amplitude, mAmplitude[0]);
    }
 
-   parms.Write(KEY_Waveform, mWaveforms[mWaveform]);
-   parms.Write(KEY_Interp, mInterpolations[mInterpolation]);
+   parms.Write(KEY_Waveform, kWaveStrings[mWaveform]);
+   parms.Write(KEY_Interp, kInterStrings[mInterpolation]);
 
    return true;
 }
 
 bool EffectToneGen::SetAutomationParameters(EffectAutomationParameters & parms)
 {
-   ReadAndVerifyEnum(Waveform, mWaveforms);
-   ReadAndVerifyEnum(Interp, mInterpolations);
+   ReadAndVerifyEnum(Waveform,  wxArrayString(kNumWaveforms, kWaveStrings));
+   ReadAndVerifyEnum(Interp, wxArrayString(kNumInterpolations, kInterStrings));
    if (mChirp)
    {
       ReadAndVerifyDouble(StartFreq);

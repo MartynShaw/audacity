@@ -140,6 +140,10 @@ void LibraryPrefs::PopulateOrExchange(ShuttleGui & S)
 #if !defined(USE_FFMPEG) || defined(DISABLE_DYNAMIC_LOADING_FFMPEG)
          bdwn->Enable(FALSE);
          bfnd->Enable(FALSE);
+#else
+         // fix compilation warnings about unused variables
+         wxUnusedVar(bfnd);
+         wxUnusedVar(bdwn);
 #endif
       }
       S.EndTwoColumn();
@@ -231,4 +235,9 @@ bool LibraryPrefs::Apply()
    PopulateOrExchange(S);
 
    return true;
+}
+
+PrefsPanel *LibraryPrefsFactory::Create(wxWindow *parent)
+{
+   return new LibraryPrefs(parent);
 }

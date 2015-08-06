@@ -8,6 +8,9 @@
 
 **********************************************************************/
 
+#include "../Audacity.h"
+#include "ExportPCM.h"
+
 #include <wx/defs.h>
 
 #include <wx/choice.h>
@@ -23,20 +26,17 @@
 
 #include "sndfile.h"
 
-#include "../Audacity.h"
 #include "../FileFormats.h"
 #include "../Internat.h"
-#include "../LabelTrack.h"
 #include "../Mix.h"
 #include "../Prefs.h"
 #include "../Project.h"
+#include "../ShuttleGui.h"
 #include "../Tags.h"
 #include "../Track.h"
-#include "../WaveTrack.h"
 #include "../ondemand/ODManager.h"
 
 #include "Export.h"
-#include "ExportPCM.h"
 
 #ifdef USE_LIBID3TAG
    #include <id3tag.h>
@@ -53,8 +53,8 @@
 struct
 {
    int format;
-   wxChar *name;
-   wxChar *desc;
+   const wxChar *name;
+   const wxChar *desc;
 }
 static const kFormats[] =
 {
@@ -92,14 +92,18 @@ static void WriteExportFormatPref(int format)
 #define ID_HEADER_CHOICE           7102
 #define ID_ENCODING_CHOICE         7103
 
-class ExportPCMOptions : public wxDialog
+class ExportPCMOptions : public wxPanel
 {
 public:
 
    ExportPCMOptions(wxWindow *parent, int format);
+   virtual ~ExportPCMOptions();
+
    void PopulateOrExchange(ShuttleGui & S);
+   bool TransferDataToWindow();
+   bool TransferDataFromWindow();
+
    void OnHeaderChoice(wxCommandEvent & evt);
-   void OnOK(wxCommandEvent& event);
 
 private:
 
@@ -112,7 +116,6 @@ private:
    wxArrayString mEncodingNames;
    wxChoice *mHeaderChoice;
    wxChoice *mEncodingChoice;
-   wxButton *mOk;
    int mHeaderFromChoice;
    int mEncodingFromChoice;
    wxArrayInt mEncodingFormats;
@@ -120,20 +123,14 @@ private:
    DECLARE_EVENT_TABLE()
 };
 
-BEGIN_EVENT_TABLE(ExportPCMOptions, wxDialog)
-   EVT_CHOICE(ID_HEADER_CHOICE,   ExportPCMOptions::OnHeaderChoice)
-   EVT_BUTTON(wxID_OK,            ExportPCMOptions::OnOK)
+BEGIN_EVENT_TABLE(ExportPCMOptions, wxPanel)
+   EVT_CHOICE(ID_HEADER_CHOICE, ExportPCMOptions::OnHeaderChoice)
 END_EVENT_TABLE()
 
-ExportPCMOptions::ExportPCMOptions(wxWindow * WXUNUSED(parent), int selformat)
-:  wxDialog(NULL, wxID_ANY,
-            wxString(_("Specify Uncompressed Options")))
+ExportPCMOptions::ExportPCMOptions(wxWindow *parent, int selformat)
+:  wxPanel(parent, wxID_ANY)
 {
-   SetName(GetTitle());
-
-   mOk = NULL;
-
-   int format = 0;
+   int format;
 
    if (selformat < 0 || selformat >= WXSIZEOF(kFormats))
    {
@@ -144,29 +141,20 @@ ExportPCMOptions::ExportPCMOptions(wxWindow * WXUNUSED(parent), int selformat)
       format = kFormats[selformat].format;
    }
 
-   int i;
-   int num;
-   int sel;
-
-   num = sf_num_headers();
-   sel = 0;
-   for (i = 0; i < num; i++) {
+   mHeaderFromChoice = 0;
+   for (int i = 0, num = sf_num_headers(); i < num; i++) {
       mHeaderNames.Add(sf_header_index_name(i));
       if ((format & SF_FORMAT_TYPEMASK) == (int)sf_header_index_to_type(i))
-         sel = i;
+         mHeaderFromChoice = i;
    }
-   mHeaderFromChoice = sel;
 
-   mEncodingFormats.Clear();
-   num = sf_num_encodings();
-   mEncodingFromChoice = sel = 0;
-   for (i = 0; i < num; i++) {
+   mEncodingFromChoice = 0;
+   for (int i = 0, sel = 0, num = sf_num_encodings(); i < num; i++) {
       int enc = sf_encoding_index_to_subtype(i);
       int fmt = (format & SF_FORMAT_TYPEMASK) | enc;
-      bool valid  = ValidatePair(fmt);
+      bool valid = ValidatePair(fmt);
       if (valid)
       {
-
          mEncodingNames.Add(sf_encoding_index_name(i));
          mEncodingFormats.Add(enc);
          if ((format & SF_FORMAT_SUBMASK) == (int)sf_encoding_index_to_subtype(i))
@@ -177,21 +165,23 @@ ExportPCMOptions::ExportPCMOptions(wxWindow * WXUNUSED(parent), int selformat)
    }
 
    ShuttleGui S(this, eIsCreatingFromPrefs);
-
    PopulateOrExchange(S);
 
-   Layout();
-   Fit();
-   Center();
+   TransferDataToWindow();
+}
+
+ExportPCMOptions::~ExportPCMOptions()
+{
+   TransferDataFromWindow();
 }
 
 void ExportPCMOptions::PopulateOrExchange(ShuttleGui & S)
 {
-   S.StartHorizontalLay(wxEXPAND, true);
+   S.StartVerticalLay();
    {
-      S.StartStatic(_("Uncompressed Export Setup"), true);
+      S.StartHorizontalLay(wxCENTER);
       {
-         S.StartMultiColumn(2, wxEXPAND);
+         S.StartMultiColumn(2, wxCENTER);
          {
             S.SetStretchyCol(1);
             mHeaderChoice = S.Id(ID_HEADER_CHOICE)
@@ -204,16 +194,31 @@ void ExportPCMOptions::PopulateOrExchange(ShuttleGui & S)
                           &mEncodingNames);
          }
          S.EndMultiColumn();
-         S.AddFixedText(_("(Not all combinations of headers and encodings are possible.)"));
       }
-      S.EndStatic();
+      S.EndHorizontalLay();
    }
-   S.EndHorizontalLay();
-
-   S.AddStandardButtons();
-   mOk = (wxButton *)wxWindow::FindWindowById(wxID_OK, this);
+   S.EndVerticalLay();
 
    return;
+}
+
+///
+///
+bool ExportPCMOptions::TransferDataToWindow()
+{
+   return true;
+}
+
+///
+///
+bool ExportPCMOptions::TransferDataFromWindow()
+{
+   ShuttleGui S(this, eIsSavingToPrefs);
+   PopulateOrExchange(S);
+
+   WriteExportFormatPref(GetFormat());
+
+   return true;
 }
 
 void ExportPCMOptions::OnHeaderChoice(wxCommandEvent & WXUNUSED(evt))
@@ -263,15 +268,6 @@ void ExportPCMOptions::OnHeaderChoice(wxCommandEvent & WXUNUSED(evt))
    ValidatePair(GetFormat());
 }
 
-void ExportPCMOptions::OnOK(wxCommandEvent& WXUNUSED(event))
-{
-   WriteExportFormatPref(GetFormat());
-
-   EndModal(wxID_OK);
-
-   return;
-}
-
 int ExportPCMOptions::GetFormat()
 {
    int hdr = sf_header_index_to_type(mHeaderChoice->GetSelection());
@@ -295,10 +291,7 @@ bool ExportPCMOptions::ValidatePair(int format)
    info.sections = 1;
    info.seekable = 0;
 
-   int valid = sf_format_check(&info);
-   if (mOk)
-      mOk->Enable(valid != 0 ? true : false);
-   return valid != 0 ? true : false;
+   return sf_format_check(&info) != 0 ? true : false;
 }
 
 //----------------------------------------------------------------------------
@@ -314,7 +307,7 @@ public:
 
    // Required
 
-   bool DisplayOptions(wxWindow *parent, int format = 0);
+   wxWindow *OptionsCreate(wxWindow *parent, int format);
    int Export(AudacityProject *project,
                int channels,
                wxString fName,
@@ -884,29 +877,15 @@ void ExportPCM::AddID3Chunk(wxString fName, Tags *tags, int sf_format)
    return;
 }
 
-/** @param format The same information as the subformat argument to the Export
- * method. Controls use of pre-defined export settings.*/
-bool ExportPCM::DisplayOptions(wxWindow *parent, int format)
+wxWindow *ExportPCM::OptionsCreate(wxWindow *parent, int format)
 {
    // default, full user control
    if (format < 0 || format >= WXSIZEOF(kFormats))
    {
-      ExportPCMOptions od(parent,format);
-      od.ShowModal();
-      return true;
+      return new ExportPCMOptions(parent, format);
    }
 
-   wxString nopt, fmt, usepcm;
-
-   nopt.Printf(_("There are no options for this format.\n"));
-   fmt.Printf(_("Your file will be exported as a \"%s\" file\n"),
-              wxGetTranslation(kFormats[format].desc));
-   usepcm.Printf(_("If you need more control over the export format please use the \"%s\" format."),
-                 _("Other uncompressed files"));
-
-   wxMessageBox(nopt + fmt + usepcm);
-
-   return true;
+   return ExportPlugin::OptionsCreate(parent, format);
 }
 
 wxString ExportPCM::GetExtension(int index)

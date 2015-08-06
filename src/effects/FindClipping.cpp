@@ -20,15 +20,18 @@
 
 
 #include "../Audacity.h"
+#include "FindClipping.h"
 
 #include <math.h>
 
 #include <wx/intl.h>
 
 #include "../AudacityApp.h"
+#include "../ShuttleGui.h"
 #include "../widgets/valnum.h"
 
-#include "FindClipping.h"
+#include "../LabelTrack.h"
+#include "../WaveTrack.h"
 
 // Define keys, defaults, minimums, and maximums for the effect parameters
 //

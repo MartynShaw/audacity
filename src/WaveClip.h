@@ -14,7 +14,6 @@
 
 #include "Audacity.h"
 #include "SampleFormat.h"
-#include "Sequence.h"
 #include "widgets/ProgressDialog.h"
 #include "ondemand/ODTaskThread.h"
 #include "xml/XMLTagHandler.h"
@@ -29,10 +28,99 @@
 #include <wx/list.h>
 #include <wx/msgdlg.h>
 
+#include <vector>
+
+class BlockArray;
+class DirManager;
 class Envelope;
+class Sequence;
+class SpectrogramSettings;
 class WaveCache;
 class WaveTrackCache;
-class SpecCache;
+
+class SpecCache {
+public:
+
+   // Make invalid cache
+   SpecCache()
+      : len(-1)
+      , ac(false)
+      , pps(-1.0)
+      , start(-1.0)
+      , windowType(-1)
+      , windowSize(-1)
+      , zeroPaddingFactor(-1)
+      , frequencyGain(-1)
+
+      , freq(NULL)
+      , where(NULL)
+
+      , dirty(-1)
+   {
+   }
+
+   // Make valid cache, to be filled in
+   SpecCache(int cacheLen, bool autocorrelation,
+      double pps_, double start_, int windowType_, int windowSize_,
+      int zeroPaddingFactor_, int frequencyGain_
+      )
+      : len(cacheLen)
+      , ac(autocorrelation)
+      , pps(pps_)
+      , start(start_)
+      , windowType(windowType_)
+      , windowSize(windowSize_)
+      , zeroPaddingFactor(zeroPaddingFactor_)
+      , frequencyGain(frequencyGain_)
+
+      // len columns, and so many rows, column-major.
+      // Don't take column literally -- this isn't pixel data yet, it's the
+      // raw data to be mapped onto the display.
+      , freq(len * ((windowSize * zeroPaddingFactor) / 2))
+
+      // Sample counts corresponding to the columns, and to one past the end.
+      , where(len + 1)
+
+      , dirty(-1)
+   {
+      where[0] = 0;
+   }
+
+   ~SpecCache()
+   {
+   }
+
+   bool Matches(int dirty_, bool autocorrelation, double pixelsPerSecond,
+      const SpectrogramSettings &settings, double rate) const;
+
+   void CalculateOneSpectrum
+      (const SpectrogramSettings &settings,
+       WaveTrackCache &waveTrackCache,
+       int xx, sampleCount numSamples,
+       double offset, double rate,
+       bool autocorrelation, const std::vector<float> &gainFactors,
+       float *scratch);
+
+   void Populate
+      (const SpectrogramSettings &settings, WaveTrackCache &waveTrackCache,
+       int copyBegin, int copyEnd, int numPixels,
+       sampleCount numSamples,
+       double offset, double rate,
+       bool autocorrelation);
+
+   const int          len; // counts pixels, not samples
+   const bool         ac;
+   const double       pps;
+   const double       start;
+   const int          windowType;
+   const int          windowSize;
+   const int          zeroPaddingFactor;
+   const int          frequencyGain;
+   std::vector<float> freq;
+   std::vector<sampleCount> where;
+
+   int          dirty;
+};
 
 class SpecPxCache {
 public:
@@ -41,6 +129,9 @@ public:
       len = cacheLen;
       values = new float[len];
       valid = false;
+      scaleType = 0;
+      range = gain = -1;
+      minFreq = maxFreq = -1;
    }
 
    ~SpecPxCache()
@@ -51,12 +142,65 @@ public:
    sampleCount  len;
    float       *values;
    bool         valid;
+
+   int scaleType;
+   int range;
+   int gain;
+   int minFreq;
+   int maxFreq;
 };
 
 class WaveClip;
 
 WX_DECLARE_USER_EXPORTED_LIST(WaveClip, WaveClipList, AUDACITY_DLL_API);
 WX_DEFINE_USER_EXPORTED_ARRAY_PTR(WaveClip*, WaveClipArray, class AUDACITY_DLL_API);
+
+// A bundle of arrays needed for drawing waveforms.  The object may or may not
+// own the storage for those arrays.  If it does, it destroys them.
+class WaveDisplay
+{
+public:
+   int width;
+   sampleCount *where;
+   float *min, *max, *rms;
+   int* bl;
+
+   std::vector<sampleCount> ownWhere;
+   std::vector<float> ownMin, ownMax, ownRms;
+   std::vector<int> ownBl;
+
+public:
+   WaveDisplay(int w)
+      : width(w), where(0), min(0), max(0), rms(0), bl(0)
+   {
+   }
+
+   // Create "own" arrays.
+   void Allocate()
+   {
+      ownWhere.resize(width + 1);
+      ownMin.resize(width);
+      ownMax.resize(width);
+      ownRms.resize(width);
+      ownBl.resize(width);
+
+      where = &ownWhere[0];
+      if (width > 0) {
+         min = &ownMin[0];
+         max = &ownMax[0];
+         rms = &ownRms[0];
+         bl = &ownBl[0];
+      }
+      else {
+         min = max = rms = 0;
+         bl = 0;
+      }
+   }
+
+   ~WaveDisplay()
+   {
+   }
+};
 
 class AUDACITY_DLL_API WaveClip : public XMLTagHandler
 {
@@ -107,7 +251,7 @@ public:
    double GetEndTime() const;
    sampleCount GetStartSample() const;
    sampleCount GetEndSample() const;
-   sampleCount GetNumSamples() const { return mSequence->GetNumSamples(); }
+   sampleCount GetNumSamples() const;
 
    // One and only one of the following is true for a given t (unless the clip
    // has zero length -- then BeforeClip() and AfterClip() can both be true).
@@ -122,7 +266,7 @@ public:
                    sampleCount start, sampleCount len);
 
    Envelope* GetEnvelope() { return mEnvelope; }
-   BlockArray* GetSequenceBlockArray() { return mSequence->GetBlockArray(); }
+   BlockArray* GetSequenceBlockArray();
 
    // Get low-level access to the sequence. Whenever possible, don't use this,
    // but use more high-level functions inside WaveClip (or add them if you
@@ -139,10 +283,10 @@ public:
 
    /** Getting high-level data from the for screen display and clipping
     * calculations and Contrast */
-   bool GetWaveDisplay(float *min, float *max, float *rms,int* bl, sampleCount *where,
-                       int numPixels, double t0, double pixelsPerSecond, bool &isLoadingOD);
+   bool GetWaveDisplay(WaveDisplay &display,
+                       double t0, double pixelsPerSecond, bool &isLoadingOD);
    bool GetSpectrogram(WaveTrackCache &cache,
-                       float *buffer, sampleCount *where,
+                       const float *& spectrogram, const sampleCount *& where,
                        int numPixels,
                        double t0, double pixelsPerSecond,
                        bool autocorrelation);
@@ -250,14 +394,6 @@ protected:
    WaveCache    *mWaveCache;
    ODLock       mWaveCacheMutex;
    SpecCache    *mSpecCache;
-#ifdef EXPERIMENTAL_USE_REALFFTF
-   // Variables used for computing the spectrum
-   HFFT          hFFT;
-   float         *mWindow;
-   int           mWindowType;
-   int           mWindowSize;
-#endif
-   int           mZeroPaddingFactor;
    samplePtr     mAppendBuffer;
    sampleCount   mAppendBufferLen;
 

@@ -15,9 +15,9 @@
 #include <wx/string.h>
 #include <wx/dynarray.h>   // sadly we are using wx dynamic arrays
 #include <wx/listctrl.h>
+#include <wx/simplebook.h>
 
 #include "Export.h"
-#include "../Track.h"
 #include "../Tags.h"       // we need to know about the Tags class for metadata
 
 class wxButton;
@@ -27,7 +27,9 @@ class wxRadioButton;
 class wxTextCtrl;
 
 class AudacityProject;
+class LabelTrack;
 class ShuttleGui;
+class TrackListIterator;
 
 class ExportMultiple : public wxDialog
 {
@@ -107,7 +109,7 @@ private:
    AudacityProject *mProject;
    TrackList *mTracks;           /**< The list of tracks in the project that is
                                    being exported */
-   TrackListIterator mIterator;  /**< Iterator used to work through all the
+   TrackListIterator *mIterator;  /**< Iterator used to work through all the
                                    tracks in the project */
    LabelTrack *mLabels;
    int mNumLabels;
@@ -160,6 +162,8 @@ private:
 
    wxButton      *mCancel;
    wxButton      *mExport;
+
+   wxSimplebook   *mBook;
 
    DECLARE_EVENT_TABLE()
 

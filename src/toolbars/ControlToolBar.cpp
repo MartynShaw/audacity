@@ -36,6 +36,7 @@
 
 #include "../Audacity.h"
 #include "../Experimental.h"
+#include "ControlToolBar.h"
 
 // For compilers that support precompilation, includes "wx/wx.h".
 #include <wx/wxprec.h>
@@ -51,7 +52,6 @@
 #endif
 #include <wx/tooltip.h>
 
-#include "ControlToolBar.h"
 #include "TranscriptionToolBar.h"
 #include "MeterToolBar.h"
 
@@ -62,7 +62,7 @@
 #include "../Prefs.h"
 #include "../Project.h"
 #include "../Theme.h"
-#include "../Track.h"
+#include "../WaveTrack.h"
 #include "../widgets/AButton.h"
 #include "../widgets/Meter.h"
 
@@ -101,11 +101,12 @@ ControlToolBar::ControlToolBar()
    mSizer = NULL;
    mCutPreviewTracks = NULL;
 
-   // strings for status bar
-   mStatePlay = _("Playing");
-   mStateStop = _("Stopped");
-   mStateRecord = _("Recording");
-   mStatePause = _("Paused");
+   /* i18n-hint: These are strings for the status bar, and indicate whether Audacity
+   is playing or recording or stopped, and whether it is paused. */
+   mStatePlay = XO("Playing");
+   mStateStop = XO("Stopped");
+   mStateRecord = XO("Recording");
+   mStatePause = XO("Paused");
 }
 
 ControlToolBar::~ControlToolBar()
@@ -1082,50 +1083,53 @@ void ControlToolBar::ClearCutPreviewTracks()
 }
 
 // works out the width of the field in the status bar needed for the state (eg play, record pause)
-int ControlToolBar::WidthForStatusBar()
+int ControlToolBar::WidthForStatusBar(wxStatusBar* const sb)
 {
-   AudacityProject* p = GetActiveProject();
-   if (!p)
-      return 100;  // dummy value to keep things happy before the project is fully created
-
-   wxStatusBar* sb = p->GetStatusBar();
    int xMax = 0;
    int x, y;
 
-   sb->GetTextExtent(mStatePlay + wxT(" ") + mStatePause + wxT("."), &x, &y);
+   sb->GetTextExtent(wxString(wxGetTranslation(mStatePlay)) + wxT(" ") +
+                     wxString(wxGetTranslation(mStatePause)) + wxT("."), &x, &y);
    if (x > xMax)
       xMax = x;
 
-   sb->GetTextExtent(mStateStop + wxT(" ") + mStatePause + wxT("."), &x, &y);
+   sb->GetTextExtent(wxString(wxGetTranslation(mStateStop)) + wxT(" ") +
+                     wxString(wxGetTranslation(mStatePause)) + wxT("."), &x, &y);
    if (x > xMax)
       xMax = x;
 
-   sb->GetTextExtent(mStateRecord + wxT(" ") + mStatePause + wxT("."), &x, &y);
+   sb->GetTextExtent(wxString(wxGetTranslation(mStateRecord)) + wxT(" ") +
+                     wxString(wxGetTranslation(mStatePause)) + wxT("."), &x, &y);
    if (x > xMax)
       xMax = x;
 
    return xMax + 30;    // added constant needed because xMax isn't large enough for some reason, plus some space.
 }
 
-void ControlToolBar::UpdateStatusBar()
+wxString ControlToolBar::StateForStatusBar()
 {
    wxString state;
 
    if (mPlay->IsDown())
-      state = mStatePlay;
+      state = wxGetTranslation(mStatePlay);
    else if (mRecord->IsDown())
-      state = mStateRecord;
+      state = wxGetTranslation(mStateRecord);
    else
-      state = mStateStop;
+      state = wxGetTranslation(mStateStop);
 
    if (mPause->IsDown())
    {
       state.Append(wxT(" "));
-      state.Append(mStatePause);
+      state.Append(wxGetTranslation(mStatePause));
    }
 
    state.Append(wxT("."));
 
-   GetActiveProject()->GetStatusBar()->SetStatusText(state);
+   return state;
+}
+
+void ControlToolBar::UpdateStatusBar()
+{
+   GetActiveProject()->GetStatusBar()->SetStatusText(StateForStatusBar(), stateStatusBarField);
 }
 

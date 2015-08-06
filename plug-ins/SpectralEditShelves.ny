@@ -19,7 +19,7 @@
 
 (defmacro validate (hz)
 "Ensure frequency is below Nyquist"
-  `(setf hz (min (/ *sound-srate* 2.0),hz)))
+  `(setf ,hz (max 0 (min (/ *sound-srate* 2.0) ,hz))))
 
 (defun mid-shelf (sig lf hf gain)
   "Combines high shelf and low shelf filters"
@@ -30,12 +30,14 @@
 
 (defun wet (sig gain f0 f1)
   (cond
-    ((not f0) ;low-shelf
-      (if (< f1 (/ *sound-srate* 2.0))
-          (eq-lowshelf sig f1 gain)
-          (mult sig gain))) ;frequency above Nyquist so amplify full spectrum
-   ((not f1) (eq-highshelf sig f0 gain))
-   (t (mid-shelf sig f0 (validate f1) gain))))
+   ((not f0) (eq-lowshelf sig (validate f1) gain))
+   ((not f1) (eq-highshelf sig (validate f0) gain))
+   (t
+    (validate f0)
+    (validate f1)
+    (when (= f0 f1)
+      (throw 'error-message "Please select a frequency range."))
+    (mid-shelf sig f0 f1 gain))))
 
 (defun result (sig)
   (let*
@@ -51,24 +53,22 @@
     (cond
       ((not (or f0 f1))
           (throw 'error-message (format nil "~aPlease select frequencies." p-err)))
-      ((and f0 f1 (= f0 f1)) (throw 'error-message
-                                    "Please select a frequency range."))
       ; shelf is above Nyquist frequency so do nothing
       ((and f0 (>= f0 (/ *sound-srate* 2.0))) nil)
       (T (sum (prod env (wet sig control-gain f0 f1))
               (prod (diff 1.0 env) sig))))))
 
-(cond
-  ((not (get '*TRACK* 'VIEW)) ; 'View is NIL during Preview
-      (setf p-err (format nil "This effect requires a frequency selection in the~%~
-                              'Spectrogram' or 'Spectrogram (log f)' track view.~%~%"))
-      (catch 'error-message
-        (multichan-expand #'result *track*)))
-  ((string-not-equal (get '*TRACK* 'VIEW) "spectrogram"  :end1 4 :end2 4)
-      "Use this effect in the 'Spectrogram'\nor 'Spectrogram (log f)' view.")
-  (T  (setf p-err "")
-      (if (= control-gain 0)  ; Allow dry preview
-          "Gain is zero. Nothing to do."
-          (catch 'error-message
-            (multichan-expand #'result *track*)))))
+;; Frequency selection must be between 0 Hz and Nyquist.
+(if (and (get '*selection* 'low-hz)
+         (<= (get '*selection* 'low-hz) 0))
+    (remprop '*selection* 'low-hz))
+(if (and (get '*selection* 'high-hz)
+         (>= (get '*selection* 'high-hz)(/ *sound-srate* 2)))
+    (remprop '*selection* 'high-hz))
+
+(catch 'error-message
+  (setf p-err "")
+  (if (= control-gain 0)		; Allow dry preview
+      "Gain is zero. Nothing to do."
+    (multichan-expand #'result *track*)))
 

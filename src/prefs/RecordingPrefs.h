@@ -16,11 +16,11 @@
 
 #include <wx/window.h>
 
-#include "../ShuttleGui.h"
-
 #include "PrefsPanel.h"
 
-class RecordingPrefs:public PrefsPanel
+class ShuttleGui;
+
+class RecordingPrefs :public PrefsPanel
 {
  public:
    RecordingPrefs(wxWindow * parent);
@@ -32,4 +32,9 @@ class RecordingPrefs:public PrefsPanel
    void PopulateOrExchange(ShuttleGui & S);
 };
 
+class RecordingPrefsFactory : public PrefsPanelFactory
+{
+public:
+   virtual PrefsPanel *Create(wxWindow *parent);
+};
 #endif

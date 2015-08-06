@@ -19,14 +19,14 @@
 *//*******************************************************************/
 
 #include "../Audacity.h"
+#include "Wahwah.h"
 
 #include <math.h>
 
 #include <wx/intl.h>
 
+#include "../ShuttleGui.h"
 #include "../widgets/valnum.h"
-
-#include "Wahwah.h"
 
 enum
 {
@@ -34,20 +34,25 @@ enum
    ID_Phase,
    ID_Depth,
    ID_Res,
-   ID_FreqOfs
+   ID_FreqOfs,
+   ID_OutGain
 };
 
 // Define keys, defaults, minimums, and maximums for the effect parameters
 //
 //     Name       Type     Key               Def      Min      Max      Scale
 Param( Freq,      double,  XO("Freq"),       1.5,     0.1,     4.0,     10  );
-Param( Phase,     double,  XO("Phase"),      0.0,     0.0,     359.0,   1   );
+Param( Phase,     double,  XO("Phase"),      0.0,     0.0,     360.0,   1   );
 Param( Depth,     int,     XO("Depth"),      70,      0,       100,     1   ); // scaled to 0-1 before processing
 Param( Res,       double,  XO("Resonance"),  2.5,     0.1,     10.0,    10  );
 Param( FreqOfs,   int,     XO("Offset"),     30,      0,       100,     1   ); // scaled to 0-1 before processing
+Param( OutGain,   double,  XO("Gain"),      -6.0,    -30.0,    30.0,    1   );
 
 // How many samples are processed before recomputing the lfo value again
 #define lfoskipsamples 30
+
+#include <wx/arrimpl.cpp>
+WX_DEFINE_OBJARRAY(EffectWahwahStateArray);
 
 //
 // EffectWahwah
@@ -59,11 +64,13 @@ BEGIN_EVENT_TABLE(EffectWahwah, wxEvtHandler)
     EVT_SLIDER(ID_Depth, EffectWahwah::OnDepthSlider)
     EVT_SLIDER(ID_Res, EffectWahwah::OnResonanceSlider)
     EVT_SLIDER(ID_FreqOfs, EffectWahwah::OnFreqOffSlider)
+    EVT_SLIDER(ID_OutGain, EffectWahwah::OnGainSlider)
     EVT_TEXT(ID_Freq, EffectWahwah::OnFreqText)
     EVT_TEXT(ID_Phase, EffectWahwah::OnPhaseText)
     EVT_TEXT(ID_Depth, EffectWahwah::OnDepthText)
     EVT_TEXT(ID_Res, EffectWahwah::OnResonanceText)
     EVT_TEXT(ID_FreqOfs, EffectWahwah::OnFreqOffText)
+    EVT_TEXT(ID_OutGain, EffectWahwah::OnGainText)
 END_EVENT_TABLE();
 
 EffectWahwah::EffectWahwah()
@@ -73,6 +80,7 @@ EffectWahwah::EffectWahwah()
    mDepth = DEF_Depth;
    mRes = DEF_Res;
    mFreqOfs = DEF_FreqOfs;
+   mOutGain = DEF_OutGain;
 
    SetLinearEffectFlag(true);
 }
@@ -100,6 +108,15 @@ EffectType EffectWahwah::GetType()
    return EffectTypeProcess;
 }
 
+bool EffectWahwah::SupportsRealtime()
+{
+#if defined(EXPERIMENTAL_REALTIME_AUDACITY_EFFECTS)
+   return true;
+#else
+   return false;
+#endif
+}
+
 // EffectClientInterface implementation
 
 int EffectWahwah::GetAudioInCount()
@@ -114,26 +131,11 @@ int EffectWahwah::GetAudioOutCount()
 
 bool EffectWahwah::ProcessInitialize(sampleCount WXUNUSED(totalLen), ChannelNames chanMap)
 {
-   lfoskip = mFreq * 2 * M_PI / mSampleRate;
-   skipcount = 0;
-   xn1 = 0;
-   xn2 = 0;
-   yn1 = 0;
-   yn2 = 0;
-   b0 = 0;
-   b1 = 0;
-   b2 = 0;
-   a0 = 0;
-   a1 = 0;
-   a2 = 0;
+   InstanceInit(mMaster, mSampleRate);
 
-   depth = mDepth / 100.0;
-   freqofs = mFreqOfs / 100.0;
-
-   phase = mPhase * M_PI / 180.0;
    if (chanMap[0] == ChannelNameFrontRight)
    {
-      phase += M_PI;
+      mMaster.phase += M_PI;
    }
 
    return true;
@@ -141,41 +143,43 @@ bool EffectWahwah::ProcessInitialize(sampleCount WXUNUSED(totalLen), ChannelName
 
 sampleCount EffectWahwah::ProcessBlock(float **inBlock, float **outBlock, sampleCount blockLen)
 {
-   float *ibuf = inBlock[0];
-   float *obuf = outBlock[0];
-   double frequency, omega, sn, cs, alpha;
-   double in, out;
+   return InstanceProcess(mMaster, inBlock, outBlock, blockLen);
+}
 
-   for (int i = 0; i < blockLen; i++)
-   {
-      in = (double) ibuf[i];
+bool EffectWahwah::RealtimeInitialize()
+{
+   SetBlockSize(512);
 
-      if ((skipcount++) % lfoskipsamples == 0)
-      {
-         frequency = (1 + cos(skipcount * lfoskip + phase)) / 2;
-         frequency = frequency * depth * (1 - freqofs) + freqofs;
-         frequency = exp((frequency - 1) * 6);
-         omega = M_PI * frequency;
-         sn = sin(omega);
-         cs = cos(omega);
-         alpha = sn / (2 * mRes);
-         b0 = (1 - cs) / 2;
-         b1 = 1 - cs;
-         b2 = (1 - cs) / 2;
-         a0 = 1 + alpha;
-         a1 = -2 * cs;
-         a2 = 1 - alpha;
-      };
-      out = (b0 * in + b1 * xn1 + b2 * xn2 - a1 * yn1 - a2 * yn2) / a0;
-      xn2 = xn1;
-      xn1 = in;
-      yn2 = yn1;
-      yn1 = out;
+   mSlaves.Clear();
 
-      obuf[i] = (float) out;
-   }
+   return true;
+}
 
-   return blockLen;
+bool EffectWahwah::RealtimeAddProcessor(int WXUNUSED(numChannels), float sampleRate)
+{
+   EffectWahwahState slave;
+
+   InstanceInit(slave, sampleRate);
+
+   mSlaves.Add(slave);
+
+   return true;
+}
+
+bool EffectWahwah::RealtimeFinalize()
+{
+   mSlaves.Clear();
+
+   return true;
+}
+
+sampleCount EffectWahwah::RealtimeProcess(int group,
+                                          float **inbuf,
+                                          float **outbuf,
+                                          sampleCount numSamples)
+{
+
+   return InstanceProcess(mSlaves[group], inbuf, outbuf, numSamples);
 }
 
 bool EffectWahwah::GetAutomationParameters(EffectAutomationParameters & parms)
@@ -185,6 +189,7 @@ bool EffectWahwah::GetAutomationParameters(EffectAutomationParameters & parms)
    parms.Write(KEY_Depth, mDepth);
    parms.Write(KEY_Res, mRes);
    parms.Write(KEY_FreqOfs, mFreqOfs);
+   parms.Write(KEY_OutGain, mOutGain);
    
    return true;
 }
@@ -196,12 +201,14 @@ bool EffectWahwah::SetAutomationParameters(EffectAutomationParameters & parms)
    ReadAndVerifyInt(Depth);
    ReadAndVerifyDouble(Res);
    ReadAndVerifyInt(FreqOfs);
+   ReadAndVerifyDouble(OutGain);
 
    mFreq = Freq;
    mPhase = Phase;
    mDepth = Depth;
    mRes = Res;
    mFreqOfs = FreqOfs;
+   mOutGain = OutGain;
 
    return true;
 }
@@ -217,7 +224,7 @@ void EffectWahwah::PopulateOrExchange(ShuttleGui & S)
    {
       S.SetStretchyCol(2);
 
-      FloatingPointValidator<double> vldfreq(1, &mFreq);
+      FloatingPointValidator<double> vldfreq(5, &mFreq, NUM_VAL_ONE_TRAILING_ZERO);
       vldfreq.SetRange(MIN_Freq, MAX_Freq);
       mFreqT = S.Id(ID_Freq).AddTextBox(_("LFO Frequency (Hz):"), wxT(""), 12);
       mFreqT->SetValidator(vldfreq);
@@ -267,6 +274,16 @@ void EffectWahwah::PopulateOrExchange(ShuttleGui & S)
       mFreqOfsS = S.Id(ID_FreqOfs).AddSlider(wxT(""), DEF_FreqOfs * SCL_FreqOfs, MAX_FreqOfs * SCL_FreqOfs, MIN_FreqOfs * SCL_FreqOfs);
       mFreqOfsT->SetName(_("Wah frequency offset in percent"));
       mFreqOfsT->SetMinSize(wxSize(100, -1));
+
+      FloatingPointValidator<double> vldoutgain(1, &mOutGain);
+      vldoutgain.SetRange(MIN_OutGain, MAX_OutGain);
+      mOutGainT = S.Id(ID_OutGain).AddTextBox(_("Output gain (dB):"), wxT(""), 12);
+      mOutGainT->SetValidator(vldoutgain);
+
+      S.SetStyle(wxSL_HORIZONTAL);
+      mOutGainS = S.Id(ID_OutGain).AddSlider(wxT(""), DEF_OutGain * SCL_OutGain, MAX_OutGain * SCL_OutGain, MIN_OutGain * SCL_OutGain);
+      mOutGainS->SetName(_("Output gain (dB)"));
+      mOutGainS->SetMinSize(wxSize(100, -1));
    }
    S.EndMultiColumn();
 }
@@ -283,6 +300,7 @@ bool EffectWahwah::TransferDataToWindow()
    mDepthS->SetValue((int) (mDepth * SCL_Depth));
    mResS->SetValue((int) (mRes * SCL_Res));
    mFreqOfsS->SetValue((int) (mFreqOfs * SCL_FreqOfs));
+   mOutGainS->SetValue((int) (mOutGain * SCL_OutGain));
 
    return true;
 }
@@ -298,6 +316,75 @@ bool EffectWahwah::TransferDataFromWindow()
 }
 
 // EffectWahwah implementation
+
+void EffectWahwah::InstanceInit(EffectWahwahState & data, float sampleRate)
+{
+   data.samplerate = sampleRate;
+   data.lfoskip = mFreq * 2 * M_PI / sampleRate;
+   data.skipcount = 0;
+   data.xn1 = 0;
+   data.xn2 = 0;
+   data.yn1 = 0;
+   data.yn2 = 0;
+   data.b0 = 0;
+   data.b1 = 0;
+   data.b2 = 0;
+   data.a0 = 0;
+   data.a1 = 0;
+   data.a2 = 0;
+
+   data.depth = mDepth / 100.0;
+   data.freqofs = mFreqOfs / 100.0;
+   data.phase = mPhase * M_PI / 180.0;
+   data.outgain = DB_TO_LINEAR(mOutGain);
+}
+
+sampleCount EffectWahwah::InstanceProcess(EffectWahwahState & data, float **inBlock, float **outBlock, sampleCount blockLen)
+{
+   float *ibuf = inBlock[0];
+   float *obuf = outBlock[0];
+   double frequency, omega, sn, cs, alpha;
+   double in, out;
+
+   data.lfoskip = mFreq * 2 * M_PI / data.samplerate;
+   data.depth = mDepth / 100.0;
+   data.freqofs = mFreqOfs / 100.0;
+
+   data.phase = mPhase * M_PI / 180.0;
+   data.outgain = DB_TO_LINEAR(mOutGain);
+
+   for (int i = 0; i < blockLen; i++)
+   {
+      in = (double) ibuf[i];
+
+      if ((data.skipcount++) % lfoskipsamples == 0)
+      {
+         frequency = (1 + cos(data.skipcount * data.lfoskip + data.phase)) / 2;
+         frequency = frequency * data.depth * (1 - data.freqofs) + data.freqofs;
+         frequency = exp((frequency - 1) * 6);
+         omega = M_PI * frequency;
+         sn = sin(omega);
+         cs = cos(omega);
+         alpha = sn / (2 * mRes);
+         data.b0 = (1 - cs) / 2;
+         data.b1 = 1 - cs;
+         data.b2 = (1 - cs) / 2;
+         data.a0 = 1 + alpha;
+         data.a1 = -2 * cs;
+         data.a2 = 1 - alpha;
+      };
+      out = (data.b0 * in + data.b1 * data.xn1 + data.b2 * data.xn2 - data.a1 * data.yn1 - data.a2 * data.yn2) / data.a0;
+      data.xn2 = data.xn1;
+      data.xn1 = in;
+      data.yn2 = data.yn1;
+      data.yn1 = out;
+      out *= data.outgain;
+
+      obuf[i] = (float) out;
+   }
+
+   return blockLen;
+}
 
 void EffectWahwah::OnFreqSlider(wxCommandEvent & evt)
 {
@@ -334,6 +421,13 @@ void EffectWahwah::OnFreqOffSlider(wxCommandEvent & evt)
 {
    mFreqOfs = evt.GetInt() / SCL_FreqOfs;
    mFreqOfsT->GetValidator()->TransferToWindow();
+   EnableApply(mUIParent->Validate());
+}
+
+void EffectWahwah::OnGainSlider(wxCommandEvent & evt)
+{
+   mOutGain = evt.GetInt() / SCL_OutGain;
+   mOutGainT->GetValidator()->TransferToWindow();
    EnableApply(mUIParent->Validate());
 }
 
@@ -385,4 +479,14 @@ void EffectWahwah::OnFreqOffText(wxCommandEvent & WXUNUSED(evt))
    }
 
    mFreqOfsS->SetValue((int) (mFreqOfs * SCL_FreqOfs));
+}
+
+void EffectWahwah::OnGainText(wxCommandEvent & WXUNUSED(evt))
+{
+   if (!EnableApply(mUIParent->TransferDataFromWindow()))
+   {
+      return;
+   }
+
+   mOutGainS->SetValue((int) (mOutGain * SCL_OutGain));
 }

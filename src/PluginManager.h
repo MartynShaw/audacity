@@ -88,7 +88,7 @@ public:
    // Effect plugins only
 
    // Will return an untranslated string
-   const wxString & GetEffectFamily() const;
+   wxString GetEffectFamily(bool translate = true) const;
    EffectType GetEffectType() const;
    bool IsEffectDefault() const;
    bool IsEffectInteractive() const;
@@ -172,7 +172,7 @@ public:
 
    // PluginManagerInterface implementation
 
-   virtual bool IsPluginRegistered(const PluginID & ID);
+   virtual bool IsPluginRegistered(const wxString & path);
 
    virtual const PluginID & RegisterPlugin(ModuleInterface *module);
    virtual const PluginID & RegisterPlugin(ModuleInterface *provider, EffectIdentInterface *effect);

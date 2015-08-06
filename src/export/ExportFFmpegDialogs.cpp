@@ -56,13 +56,10 @@
 
 #include "../FileFormats.h"
 #include "../Internat.h"
-#include "../LabelTrack.h"
 #include "../Mix.h"
 #include "../Prefs.h"
 #include "../Project.h"
 #include "../Tags.h"
-#include "../Track.h"
-#include "../WaveTrack.h"
 
 #include "Export.h"
 
@@ -139,204 +136,199 @@ static const wxChar *FFmpegExportCtrlIDNames[] = {
 // ExportFFmpegAC3Options Class
 //----------------------------------------------------------------------------
 
-BEGIN_EVENT_TABLE(ExportFFmpegAC3Options, wxDialog)
-   EVT_BUTTON(wxID_OK,ExportFFmpegAC3Options::OnOK)
-END_EVENT_TABLE()
-
 // This initialises content for the static const member variables defined in
 // ExportFFmpegDialogs.h (note no static keyword - important!)
 const int ExportFFmpegAC3Options::iAC3BitRates[] = { 32000, 40000, 48000, 56000, 64000, 80000, 96000, 112000, 128000, 160000, 192000, 224000, 256000, 320000, 384000, 448000, 512000, 576000, 640000 };
 const int ExportFFmpegAC3Options::iAC3SampleRates[] = { 32000, 44100, 48000, 0 };
 
-ExportFFmpegAC3Options::ExportFFmpegAC3Options(wxWindow *parent)
-:  wxDialog(parent, wxID_ANY,
-            wxString(_("Specify AC3 Options")))
+ExportFFmpegAC3Options::ExportFFmpegAC3Options(wxWindow *parent, int WXUNUSED(format))
+:  wxPanel(parent, wxID_ANY)
 {
-   SetName(GetTitle());
-   ShuttleGui S(this, eIsCreatingFromPrefs);
-
    for (unsigned int i=0; i < (sizeof(iAC3BitRates)/sizeof(int)); i++)
    {
       mBitRateNames.Add(wxString::Format(_("%i kbps"),iAC3BitRates[i]/1000));
       mBitRateLabels.Add(iAC3BitRates[i]);
    }
 
+   ShuttleGui S(this, eIsCreatingFromPrefs);
    PopulateOrExchange(S);
+
+   TransferDataToWindow();
+}
+
+ExportFFmpegAC3Options::~ExportFFmpegAC3Options()
+{
+   TransferDataFromWindow();
 }
 
 ///
 ///
 void ExportFFmpegAC3Options::PopulateOrExchange(ShuttleGui & S)
 {
-   S.StartHorizontalLay(wxEXPAND, 0);
+   S.StartVerticalLay();
    {
-      S.StartStatic(_("AC3 Export Setup"), 0);
+      S.StartHorizontalLay(wxCENTER);
       {
-         S.StartTwoColumn();
+         S.StartMultiColumn(2, wxCENTER);
          {
             S.TieChoice(_("Bit Rate:"), wxT("/FileFormats/AC3BitRate"),
                160000, mBitRateNames, mBitRateLabels);
          }
-         S.EndTwoColumn();
+         S.EndMultiColumn();
       }
-      S.EndStatic();
+      S.EndHorizontalLay();
    }
-   S.EndHorizontalLay();
-
-   S.AddStandardButtons();
-
-   Layout();
-   Fit();
-   SetMinSize(GetSize());
-   Center();
-
-   return;
+   S.EndVerticalLay();
 }
 
 ///
 ///
-void ExportFFmpegAC3Options::OnOK(wxCommandEvent& WXUNUSED(event))
+bool ExportFFmpegAC3Options::TransferDataToWindow()
+{
+   return true;
+}
+
+///
+///
+bool ExportFFmpegAC3Options::TransferDataFromWindow()
 {
    ShuttleGui S(this, eIsSavingToPrefs);
    PopulateOrExchange(S);
 
-   EndModal(wxID_OK);
+   gPrefs->Flush();
 
-   return;
+   return true;
 }
 
 //----------------------------------------------------------------------------
 // ExportFFmpegAACOptions Class
 //----------------------------------------------------------------------------
 
-BEGIN_EVENT_TABLE(ExportFFmpegAACOptions, wxDialog)
-   EVT_BUTTON(wxID_OK,ExportFFmpegAACOptions::OnOK)
-END_EVENT_TABLE()
-
-ExportFFmpegAACOptions::ExportFFmpegAACOptions(wxWindow *parent)
-:  wxDialog(parent, wxID_ANY,
-            wxString(_("Specify AAC Options")))
+ExportFFmpegAACOptions::ExportFFmpegAACOptions(wxWindow *parent, int WXUNUSED(format))
+:  wxPanel(parent, wxID_ANY)
 {
-   SetName(GetTitle());
    ShuttleGui S(this, eIsCreatingFromPrefs);
-
    PopulateOrExchange(S);
+
+   TransferDataToWindow();
+}
+
+ExportFFmpegAACOptions::~ExportFFmpegAACOptions()
+{
+   TransferDataFromWindow();
 }
 
 ///
 ///
 void ExportFFmpegAACOptions::PopulateOrExchange(ShuttleGui & S)
 {
-   S.StartStatic(_("AAC Export Setup"), 1);
+   S.StartVerticalLay();
    {
-      S.StartMultiColumn(2, wxEXPAND);
+      S.StartHorizontalLay(wxEXPAND);
       {
-         S.SetStretchyCol(1);
-         S.TieSlider(_("Quality:"),wxT("/FileFormats/AACQuality"),100,500,10);
+         S.SetSizerProportion(1);
+         S.StartMultiColumn(2, wxCENTER);
+         {
+            S.SetStretchyCol(1);
+            S.Prop(1).TieSlider(_("Quality:"),wxT("/FileFormats/AACQuality"),100,500,10);
+         }
+         S.EndMultiColumn();
       }
-      S.EndMultiColumn();
+      S.EndHorizontalLay();
    }
-   S.EndStatic();
-   S.AddStandardButtons();
-
-   Layout();
-   Fit();
-   SetMinSize(GetSize());
-   Center();
-
-   return;
+   S.EndVerticalLay();
 }
 
 ///
 ///
-void ExportFFmpegAACOptions::OnOK(wxCommandEvent& WXUNUSED(event))
+bool ExportFFmpegAACOptions::TransferDataToWindow()
+{
+   return true;
+}
+
+///
+///
+bool ExportFFmpegAACOptions::TransferDataFromWindow()
 {
    ShuttleGui S(this, eIsSavingToPrefs);
    PopulateOrExchange(S);
 
-   EndModal(wxID_OK);
+   gPrefs->Flush();
 
-   return;
+   return true;
 }
-
 
 //----------------------------------------------------------------------------
 // ExportFFmpegAMRNBOptions Class
 //----------------------------------------------------------------------------
-
-BEGIN_EVENT_TABLE(ExportFFmpegAMRNBOptions, wxDialog)
-   EVT_BUTTON(wxID_OK,ExportFFmpegAMRNBOptions::OnOK)
-END_EVENT_TABLE()
 
 /// Bit Rates supported by libAMR-NB encoder
 /// Sample Rate is always 8 kHz
 int ExportFFmpegAMRNBOptions::iAMRNBBitRate[] =
 { 4750, 5150, 5900, 6700, 7400, 7950, 10200, 12200 };
 
-ExportFFmpegAMRNBOptions::ExportFFmpegAMRNBOptions(wxWindow *parent)
-:  wxDialog(parent, wxID_ANY,
-            wxString(_("Specify AMR-NB Options")))
+ExportFFmpegAMRNBOptions::ExportFFmpegAMRNBOptions(wxWindow *parent, int WXUNUSED(format))
+:  wxPanel(parent, wxID_ANY)
 {
-   SetName(GetTitle());
-   ShuttleGui S(this, eIsCreatingFromPrefs);
-
    for (unsigned int i=0; i < (sizeof(iAMRNBBitRate)/sizeof(int)); i++)
    {
       mBitRateNames.Add(wxString::Format(_("%.2f kbps"),(float)iAMRNBBitRate[i]/1000));
       mBitRateLabels.Add(iAMRNBBitRate[i]);
    }
 
+   ShuttleGui S(this, eIsCreatingFromPrefs);
    PopulateOrExchange(S);
+
+   TransferDataToWindow();
+}
+
+ExportFFmpegAMRNBOptions::~ExportFFmpegAMRNBOptions()
+{
+   TransferDataFromWindow();
 }
 
 ///
 ///
 void ExportFFmpegAMRNBOptions::PopulateOrExchange(ShuttleGui & S)
 {
-   S.StartHorizontalLay(wxEXPAND, 0);
+   S.StartVerticalLay();
    {
-      S.StartStatic(_("AMR-NB Export Setup"), 0);
+      S.StartHorizontalLay(wxCENTER);
       {
-         S.StartTwoColumn();
+         S.StartMultiColumn(2, wxCENTER);
          {
             S.TieChoice(_("Bit Rate:"), wxT("/FileFormats/AMRNBBitRate"),
                12200, mBitRateNames, mBitRateLabels);
          }
-         S.EndTwoColumn();
+         S.EndMultiColumn();
       }
-      S.EndStatic();
+      S.EndHorizontalLay();
    }
-   S.EndHorizontalLay();
-
-   S.AddStandardButtons();
-
-   Layout();
-   Fit();
-   SetMinSize(GetSize());
-   Center();
-
-   return;
+   S.EndVerticalLay();
 }
 
 ///
 ///
-void ExportFFmpegAMRNBOptions::OnOK(wxCommandEvent& WXUNUSED(event))
+bool ExportFFmpegAMRNBOptions::TransferDataToWindow()
+{
+   return true;
+}
+
+///
+///
+bool ExportFFmpegAMRNBOptions::TransferDataFromWindow()
 {
    ShuttleGui S(this, eIsSavingToPrefs);
    PopulateOrExchange(S);
 
-   EndModal(wxID_OK);
+   gPrefs->Flush();
 
-   return;
+   return true;
 }
 
 //----------------------------------------------------------------------------
 // ExportFFmpegWMAOptions Class
 //----------------------------------------------------------------------------
-
-BEGIN_EVENT_TABLE(ExportFFmpegWMAOptions, wxDialog)
-   EVT_BUTTON(wxID_OK,ExportFFmpegWMAOptions::OnOK)
-END_EVENT_TABLE()
 
 const int ExportFFmpegWMAOptions::iWMASampleRates[] =
 { 8000, 11025, 16000, 22050, 44100, 0};
@@ -345,62 +337,124 @@ const int ExportFFmpegWMAOptions::iWMASampleRates[] =
 const int ExportFFmpegWMAOptions::iWMABitRate[] =
 { 24000, 32000, 40000, 48000, 64000, 80000, 96000, 128000, 160000, 192000, 256000, 320000 };
 
-
-ExportFFmpegWMAOptions::ExportFFmpegWMAOptions(wxWindow *parent)
-:  wxDialog(parent, wxID_ANY,
-            wxString(_("Specify WMA Options")))
+ExportFFmpegWMAOptions::ExportFFmpegWMAOptions(wxWindow *parent, int WXUNUSED(format))
+:  wxPanel(parent, wxID_ANY)
 {
-   SetName(GetTitle());
-   ShuttleGui S(this, eIsCreatingFromPrefs);
-
    for (unsigned int i=0; i < (sizeof(iWMABitRate)/sizeof(int)); i++)
    {
       mBitRateNames.Add(wxString::Format(wxT("%i kbps"),iWMABitRate[i]/1000));
       mBitRateLabels.Add(iWMABitRate[i]);
    }
 
+   ShuttleGui S(this, eIsCreatingFromPrefs);
    PopulateOrExchange(S);
+
+   TransferDataToWindow();
+}
+
+ExportFFmpegWMAOptions::~ExportFFmpegWMAOptions()
+{
+   TransferDataFromWindow();
 }
 
 ///
 ///
 void ExportFFmpegWMAOptions::PopulateOrExchange(ShuttleGui & S)
 {
-   S.StartHorizontalLay(wxEXPAND, 0);
+   S.StartVerticalLay();
    {
-      S.StartStatic(_("WMA Export Setup"), 0);
+      S.StartHorizontalLay(wxCENTER);
       {
-         S.StartTwoColumn();
+         S.StartMultiColumn(2, wxCENTER);
          {
             S.TieChoice(_("Bit Rate:"), wxT("/FileFormats/WMABitRate"),
                96000, mBitRateNames, mBitRateLabels);
          }
-         S.EndTwoColumn();
+         S.EndMultiColumn();
       }
-      S.EndStatic();
+      S.EndHorizontalLay();
    }
-   S.EndHorizontalLay();
-
-   S.AddStandardButtons();
-
-   Layout();
-   Fit();
-   SetMinSize(GetSize());
-   Center();
-
-   return;
+   S.EndVerticalLay();
 }
 
 ///
 ///
-void ExportFFmpegWMAOptions::OnOK(wxCommandEvent& WXUNUSED(event))
+bool ExportFFmpegWMAOptions::TransferDataToWindow()
+{
+   return true;
+}
+
+///
+///
+bool ExportFFmpegWMAOptions::TransferDataFromWindow()
 {
    ShuttleGui S(this, eIsSavingToPrefs);
    PopulateOrExchange(S);
 
-   EndModal(wxID_OK);
+   gPrefs->Flush();
 
-   return;
+   return true;
+}
+
+//----------------------------------------------------------------------------
+// ExportFFmpegCustomOptions Class
+//----------------------------------------------------------------------------
+
+#define OpenID 9000
+
+BEGIN_EVENT_TABLE(ExportFFmpegCustomOptions, wxPanel)
+   EVT_BUTTON(OpenID, ExportFFmpegCustomOptions::OnOpen)
+END_EVENT_TABLE()
+
+ExportFFmpegCustomOptions::ExportFFmpegCustomOptions(wxWindow *parent, int WXUNUSED(format))
+:  wxPanel(parent, wxID_ANY)
+{
+   ShuttleGui S(this, eIsCreatingFromPrefs);
+   PopulateOrExchange(S);
+
+   TransferDataToWindow();
+}
+
+ExportFFmpegCustomOptions::~ExportFFmpegCustomOptions()
+{
+   TransferDataFromWindow();
+}
+
+///
+///
+void ExportFFmpegCustomOptions::PopulateOrExchange(ShuttleGui & S)
+{
+   S.StartHorizontalLay(wxCENTER);
+   {
+      S.StartHorizontalLay(wxCENTER, 0);
+      {
+         S.Id(OpenID).AddButton(_("Open custom FFmpeg format options"));
+      }
+      S.EndHorizontalLay();
+   }
+   S.EndHorizontalLay();
+}
+
+///
+///
+bool ExportFFmpegCustomOptions::TransferDataToWindow()
+{
+   return true;
+}
+
+///
+///
+bool ExportFFmpegCustomOptions::TransferDataFromWindow()
+{
+   return true;
+}
+
+///
+///
+void ExportFFmpegCustomOptions::OnOpen(wxCommandEvent & WXUNUSED(evt))
+{
+   ExportFFmpegOptions od(wxGetTopLevelParent(this));
+   od.ShowModal();
 }
 
 FFmpegPreset::FFmpegPreset(wxString &name)

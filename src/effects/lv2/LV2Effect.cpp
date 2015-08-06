@@ -46,13 +46,16 @@
 #include "lv2/lv2plug.in/ns/extensions/ui/ui.h"
 
 #if defined(__WXGTK__)
-#include <wx/gtk/win_gtk.h>
-
 #include <gtk/gtk.h>
+#include "win_gtk.h"
 #endif
 
 #if defined(__WXMSW__)
 #include <wx/msw/wrapwin.h>
+#endif
+
+#if defined(__WXMAC__)
+#include <Appkit/Appkit.h>
 #endif
 
 // Define the static URI nodes
@@ -104,7 +107,6 @@ LV2EffectMeter::LV2EffectMeter(wxWindow *parent, const LV2Port & ctrl)
 LV2EffectMeter::~LV2EffectMeter()
 {
 }
-
 
 void LV2EffectMeter::OnIdle(wxIdleEvent & WXUNUSED(evt))
 {
@@ -380,7 +382,7 @@ wxString LV2Effect::GetVendor()
 
    if (vendor.IsEmpty())
    {
-      vendor = _("N/A");
+      vendor = XO("N/A");
    }
 
    return vendor;
@@ -393,7 +395,7 @@ wxString LV2Effect::GetVersion()
 
 wxString LV2Effect::GetDescription()
 {
-   return _("N/A");
+   return XO("N/A");
 }
 
 // ============================================================================
@@ -458,8 +460,21 @@ bool LV2Effect::SetHost(EffectHostInterface *host)
 {
    mHost = host;
 
-   // Allocate buffers for the port indices and the default control values
    int numPorts = lilv_plugin_get_num_ports(mPlug);
+
+   // Fail if we don't grok the port types
+   for (int i = 0; i < numPorts; i++)
+   {
+      const LilvPort *port = lilv_plugin_get_port_by_index(mPlug, i);
+
+      if (!lilv_port_is_a(mPlug, port, gAudio) &&
+          !lilv_port_is_a(mPlug, port, gControl))
+      {
+         return false;
+      }
+   }
+
+   // Allocate buffers for the port indices and the default control values
    float *minimumVals = new float [numPorts];
    float *maximumVals = new float [numPorts];
    float *defaultValues = new float [numPorts];
@@ -1075,6 +1090,13 @@ bool LV2Effect::PopulateUI(wxWindow *parent)
                           mUseGUI,
                           true);
 
+   // Until I figure out where to put the "Duration" control in the
+   // graphical editor, force usage of plain editor.
+   if (GetType() == EffectTypeGenerate)
+   {
+      mUseGUI = false;
+   }
+
    if (mUseGUI)
    {
       mUseGUI = BuildFancy();
@@ -1282,34 +1304,36 @@ void LV2Effect::ShowOptions()
 
 bool LV2Effect::LoadParameters(const wxString & group)
 {
-   wxString value;
-
-   if (!mHost->GetPrivateConfig(group, wxT("Value"), value, wxEmptyString))
+   wxString parms;
+   if (!mHost->GetPrivateConfig(group, wxT("Parameters"), parms, wxEmptyString))
    {
       return false;
    }
 
-   wxStringTokenizer st(value, wxT(','));
-   for (size_t p = 0; st.HasMoreTokens(); p++)
+   EffectAutomationParameters eap;
+   if (!eap.SetParameters(parms))
    {
-      double val = 0.0;
-      st.GetNextToken().ToDouble(&val);
-      mControls[p].mVal = (float) val;
+      return false;
    }
 
-   return true;
+   return SetAutomationParameters(eap);
 }
 
 bool LV2Effect::SaveParameters(const wxString & group)
 {
-   wxString parms;
-
-   for (size_t i = 0, cnt = mControls.GetCount(); i < cnt; i++)
+   EffectAutomationParameters eap;
+   if (!GetAutomationParameters(eap))
    {
-      parms += wxString::Format(wxT(",%f"), mControls[i].mVal);
+      return false;
    }
 
-   return mHost->SetPrivateConfig(group, wxT("Value"), parms.Mid(1));
+   wxString parms;
+   if (!eap.GetParameters(parms))
+   {
+      return false;
+   }
+
+   return mHost->SetPrivateConfig(group, wxT("Parameters"), parms);
 }
 
 LV2_Options_Option *LV2Effect::AddOption(const char *key, uint32_t size, const char *type, void *value)
@@ -1457,13 +1481,9 @@ bool LV2Effect::BuildFancy()
       return false;
    }
 
-//   wxBoxSizer *hs = new wxBoxSizer(wxVERTICAL);
-//   vs->Add(mContainer, 0, wxALIGN_CENTER);
-//   mParent->SetSizer(vs);
-//wxWindow *mContainer = mParent;
 #if defined(__WXGTK__)
    // Make sure the parent has a window
-   if (!GTK_WIDGET(mContainer->m_wxwindow)->window)
+   if (!gtk_widget_get_window(GTK_WIDGET(mContainer->m_wxwindow)))
    {
       gtk_widget_realize(GTK_WIDGET(mContainer->m_wxwindow));
    }
@@ -1472,6 +1492,7 @@ bool LV2Effect::BuildFancy()
 #elif defined(__WXMSW__)
    mParentFeature->data = mContainer->GetHandle();
 #elif defined(__WXMAC__)
+   mParentFeature->data = mContainer->GetHandle();
 #endif
 
    mInstanceAccessFeature->data = lilv_instance_get_handle(mMaster);
@@ -1519,13 +1540,12 @@ bool LV2Effect::BuildFancy()
    gtk_widget_set_size_request(widget, 1, 1);
    gtk_widget_set_size_request(widget, sz.width, sz.height);
 
-   GtkPizza *pizza = GTK_PIZZA(mContainer->m_wxwindow);
-   gtk_pizza_put(pizza,
-                 widget,
-                 0, //gtk_pizza_get_xoffset(pizza),
-                 0, //gtk_pizza_get_yoffset(pizza),
-                 sz.width,
-                 sz.height);
+   wxPizza *pizza = WX_PIZZA(mContainer->m_wxwindow);
+   pizza->put(widget,
+              0, //gtk_pizza_get_xoffset(pizza),
+              0, //gtk_pizza_get_yoffset(pizza),
+              sz.width,
+              sz.height);
    gtk_widget_show_all(GTK_WIDGET(pizza));
    si->SetMinSize(wxSize(sz.width, sz.height));
 #elif defined(__WXMSW__)
@@ -1534,7 +1554,9 @@ bool LV2Effect::BuildFancy()
    GetWindowRect(widget, &rect);
    si->SetMinSize(wxSize(rect.right - rect.left, rect.bottom - rect.top));
 #elif defined(__WXMAC__)
-//   si->SetMinSize(wxSize(sz.width, sz.height));
+   NSView *view = (NSView *) suil_instance_get_widget(mSuilInstance);
+   NSSize sz = [view frame].size;
+   si->SetMinSize(sz.width, sz.height);
 #endif
 
    mParent->SetSizerAndFit(vs);
@@ -1655,8 +1677,8 @@ bool LV2Effect::BuildPlain()
          }
          else if (ctrl.mEnumeration)      // Check before integer
          {
-            size_t s;
-            for (s = ctrl.mScaleValues.GetCount() - 1; s >= 0; s--)
+            int s;
+            for (s = (int) ctrl.mScaleValues.GetCount() - 1; s >= 0; s--)
             {
                if (ctrl.mVal >= ctrl.mScaleValues[s])
                {
@@ -1885,8 +1907,8 @@ bool LV2Effect::TransferDataToWindow()
          }
          else if (ctrl.mEnumeration)      // Check before integer
          {
-            size_t s;
-            for (s = ctrl.mScaleValues.GetCount() - 1; s >= 0; s--)
+            int s;
+            for (s = (int) ctrl.mScaleValues.GetCount() - 1; s >= 0; s--)
             {
                if (ctrl.mVal >= ctrl.mScaleValues[s])
                {

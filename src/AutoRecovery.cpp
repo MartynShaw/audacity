@@ -19,12 +19,16 @@ recover previous Audacity projects that were closed incorrectly.
 #include "AudacityApp.h"
 #include "FileNames.h"
 #include "blockfile/SimpleBlockFile.h"
+#include "Sequence.h"
+#include "ShuttleGui.h"
 
 #include <wx/wxprec.h>
 #include <wx/filefn.h>
 #include <wx/dir.h>
 #include <wx/dialog.h>
 #include <wx/app.h>
+
+#include "WaveTrack.h"
 
 enum {
    ID_RECOVER_ALL = 10000,
@@ -80,14 +84,14 @@ void AutoRecoveryDialog::PopulateOrExchange(ShuttleGui& S)
          mFileList = S.Id(ID_FILE_LIST).AddListControlReportMode();
          /*i18n-hint: (noun).  It's the name of the project to recover.*/
          mFileList->InsertColumn(0, _("Name"));
-         mFileList->SetColumnWidth(0, 220);
+         mFileList->SetColumnWidth(0, wxLIST_AUTOSIZE);
          PopulateList();
       }
       S.EndStatic();
 
       S.AddVariableText(_("After recovery, save the project to save the changes to disk."), false);
 
-      S.StartHorizontalLay(true);
+      S.StartHorizontalLay();
       {
          S.Id(ID_QUIT_AUDACITY).AddButton(_("Quit Audacity"));
          S.Id(ID_RECOVER_NONE).AddButton(_("Discard Projects"));
@@ -100,6 +104,10 @@ void AutoRecoveryDialog::PopulateOrExchange(ShuttleGui& S)
    Layout();
    Fit();
    SetMinSize(GetSize());
+
+   // Sometimes it centers on wxGTK and sometimes it doesn't.
+   // Yielding before centering seems to be a good workaround,
+   // but will leave to implement on a rainy day.
    Center();
 }
 
@@ -226,6 +234,20 @@ bool ShowAutoRecoveryDialogIfNeeded(AudacityProject** pproj,
       *didRecoverAnything = false;
    if (HaveFilesToRecover())
    {
+      // Under wxGTK3, the auto recovery dialog will not get
+      // the focus since the project window hasn't been allowed
+      // to completely initialize.
+      //
+      // Yielding seems to allow the initialization to complete.
+      //
+      // Additionally, it also corrects a sizing issue in the dialog
+      // related to wxWidgets bug:
+      //
+      //    http://trac.wxwidgets.org/ticket/16440
+      //
+      // This must be done before "dlg" is declared.
+      wxEventLoopBase::GetActive()->YieldFor(wxEVT_CATEGORY_UI);
+
       AutoRecoveryDialog dlg(*pproj);
       int ret = dlg.ShowModal();
 
@@ -275,10 +297,10 @@ bool RecordingRecoveryHandler::HandleXMLTag(const wxChar *tag,
 
       // We need to find the track and sequence where the blockfile belongs
       WaveTrackArray tracks = mProject->GetTracks()->GetWaveTrackArray(false);
-      size_t index;
+      int index;
       if (mAutoSaveIdent)
       {
-         for (index = 0; index < tracks.GetCount(); index++)
+         for (index = 0; index < (int) tracks.GetCount(); index++)
          {
             if (tracks[index]->GetAutoSaveIdent() == mAutoSaveIdent)
             {
@@ -291,7 +313,7 @@ bool RecordingRecoveryHandler::HandleXMLTag(const wxChar *tag,
          index = tracks.GetCount() - mNumChannels + mChannel;
       }
 
-      if (index < 0 || index >= tracks.GetCount())
+      if (index < 0 || index >= (int) tracks.GetCount())
       {
          // This should only happen if there is a bug
          wxASSERT(false);
@@ -383,7 +405,7 @@ XMLTagHandler* RecordingRecoveryHandler::HandleXMLChild(const wxChar *tag)
 //
 // It is not intended that the user view or modify the file.
 //
-// It IS intended that as little work be done during auto save, so numbers
+// It IS intended that very little work be done during auto save, so numbers
 // and strings are written in their native format.  They will be converted
 // during recovery.
 //
@@ -393,8 +415,8 @@ XMLTagHandler* RecordingRecoveryHandler::HandleXMLChild(const wxChar *tag)
 //    name dictionary   dictionary of all names used in the document
 //    data fields       the "encoded" XML document
 //
-// If a subtree is added, it will be preceeded with FT_Push tell the decoder
-// to preserve the active dictionary.  The decoder when then restore the
+// If a subtree is added, it will be preceeded with FT_Push to tell the decoder
+// to preserve the active dictionary.  The decoder will then restore the
 // dictionary when an FT_Pop is encountered.  Nesting is unlimited.
 //
 // To save space, each name (attribute or element) encountered is stored in
@@ -402,7 +424,7 @@ XMLTagHandler* RecordingRecoveryHandler::HandleXMLChild(const wxChar *tag)
 //
 // All strings are in native unicode format, 2-byte or 4-byte.
 //
-// All "lengths" are 2-byte signed, so are limited to 32767 bytes long/
+// All "lengths" are 2-byte signed, so are limited to 32767 bytes long.
 
 enum FieldTypes
 {
@@ -457,10 +479,10 @@ void AutoSaveFile::WriteAttr(const wxString & name, const wxString & value)
    mBuffer.PutC(FT_String);
    WriteName(name);
 
-   short len = value.Length() * sizeof(wxChar);
+   int len = value.Length() * sizeof(wxChar);
 
    mBuffer.Write(&len, sizeof(len));
-   mBuffer.Write(value.c_str(), len);
+   mBuffer.Write(value.wx_str(), len);
 }
 
 void AutoSaveFile::WriteAttr(const wxString & name, int value)
@@ -525,20 +547,20 @@ void AutoSaveFile::WriteData(const wxString & value)
 {
    mBuffer.PutC(FT_Data);
 
-   short len = value.Length() * sizeof(wxChar);
+   int len = value.Length() * sizeof(wxChar);
 
    mBuffer.Write(&len, sizeof(len));
-   mBuffer.Write(value.c_str(), len);
+   mBuffer.Write(value.wx_str(), len);
 }
 
 void AutoSaveFile::Write(const wxString & value)
 {
    mBuffer.PutC(FT_Raw);
 
-   short len = value.Length() * sizeof(wxChar);
+   int len = value.Length() * sizeof(wxChar);
 
    mBuffer.Write(&len, sizeof(len));
-   mBuffer.Write(value.c_str(), len);
+   mBuffer.Write(value.wx_str(), len);
 }
 
 void AutoSaveFile::WriteSubTree(const AutoSaveFile & value)
@@ -595,6 +617,7 @@ void AutoSaveFile::CheckSpace(wxMemoryOutputStream & os)
 
 void AutoSaveFile::WriteName(const wxString & name)
 {
+   wxASSERT(name.Length() * sizeof(wxChar) <= SHRT_MAX);
    short len = name.Length() * sizeof(wxChar);
    short id;
 
@@ -611,7 +634,7 @@ void AutoSaveFile::WriteName(const wxString & name)
       mDict.PutC(FT_Name);
       mDict.Write(&id, sizeof(id));
       mDict.Write(&len, sizeof(len));
-      mDict.Write(name.c_str(), len);
+      mDict.Write(name.wx_str(), len);
    }
 
    CheckSpace(mBuffer);
@@ -692,8 +715,7 @@ bool AutoSaveFile::Decode(const wxString & fileName)
    file.Close();
 
    // Decode to a temporary file to preserve the orignal.
-   wxString tempName = fn.CreateTempFileName(fn.GetPath());
-
+   wxString tempName = fn.CreateTempFileName(fn.GetFullPath());
    bool opened = false;
 
    XMLFileWriter out;
@@ -771,7 +793,7 @@ bool AutoSaveFile::Decode(const wxString & fileName)
 
          case FT_String:
          {
-            short len;
+            int len;
 
             in.Read(&id, sizeof(id));
             in.Read(&len, sizeof(len));
@@ -866,7 +888,7 @@ bool AutoSaveFile::Decode(const wxString & fileName)
 
          case FT_Data:
          {
-            short len;
+            int len;
 
             in.Read(&len, sizeof(len));
             wxChar *val = new wxChar[len / sizeof(wxChar)];
@@ -879,7 +901,7 @@ bool AutoSaveFile::Decode(const wxString & fileName)
 
          case FT_Raw:
          {
-            short len;
+            int len;
 
             in.Read(&len, sizeof(len));
             wxChar *val = new wxChar[len / sizeof(wxChar)];

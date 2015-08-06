@@ -19,11 +19,11 @@
 #include <wx/window.h>
 #include <wx/dynarray.h>
 
-#include "../ShuttleGui.h"
-
 #include "PrefsPanel.h"
 
-class DevicePrefs:public PrefsPanel
+class ShuttleGui;
+
+class DevicePrefs :public PrefsPanel
 {
  public:
    DevicePrefs(wxWindow * parent);
@@ -52,6 +52,12 @@ class DevicePrefs:public PrefsPanel
    wxChoice *mChannels;
 
    DECLARE_EVENT_TABLE();
+};
+
+class DevicePrefsFactory : public PrefsPanelFactory
+{
+public:
+   virtual PrefsPanel *Create(wxWindow *parent);
 };
 
 #endif

@@ -17,11 +17,11 @@
 
 #include <wx/window.h>
 
-#include "../ShuttleGui.h"
-
 #include "PrefsPanel.h"
 
-class WarningsPrefs:public PrefsPanel
+class ShuttleGui;
+
+class WarningsPrefs :public PrefsPanel
 {
  public:
    WarningsPrefs(wxWindow * parent);
@@ -33,4 +33,9 @@ class WarningsPrefs:public PrefsPanel
    void PopulateOrExchange(ShuttleGui & S);
 };
 
+class WarningsPrefsFactory : public PrefsPanelFactory
+{
+public:
+   virtual PrefsPanel *Create(wxWindow *parent);
+};
 #endif

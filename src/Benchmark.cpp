@@ -16,6 +16,7 @@ of the BlockFile system.
 
 
 #include "Audacity.h"
+#include "Benchmark.h"
 
 #include <wx/log.h>
 #include <wx/textctrl.h>
@@ -33,7 +34,7 @@ of the BlockFile system.
 #include <wx/valtext.h>
 #include <wx/intl.h>
 
-#include "Benchmark.h"
+#include "ShuttleGui.h"
 #include "Project.h"
 #include "WaveTrack.h"
 #include "Sequence.h"
@@ -228,7 +229,7 @@ void BenchmarkDialog::MakeBenchmarkDialog()
          }
          S.EndHorizontalLay();
 
-         S.StartHorizontalLay(wxALIGN_RIGHT, false);
+         S.StartHorizontalLay(wxALIGN_NOT | wxALIGN_LEFT, false);
          {
             S.Id(wxID_CANCEL).AddButton(wxT("Close"));
          }
@@ -247,7 +248,12 @@ void BenchmarkDialog::OnSave( wxCommandEvent & WXUNUSED(event))
    wxString fName = wxT("benchmark.txt");
 
    fName = FileSelector(wxT("Export Benchmark Data As:"),
-                        wxEmptyString, fName, wxT("txt"), wxT("*.txt"), wxFD_SAVE | wxRESIZE_BORDER, this);
+                        wxEmptyString,
+                        fName,
+                        wxT("txt"),
+                        wxT("*.txt"),
+                        wxFD_SAVE | wxRESIZE_BORDER,
+                        this);
 
    if (fName == wxT(""))
       return;

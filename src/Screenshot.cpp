@@ -34,6 +34,8 @@
 #include "Prefs.h"
 #include "toolbars/ToolManager.h"
 
+#include "Track.h"
+
 class CommandType;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -426,7 +428,7 @@ void ScreenFrame::PopulateOrExchange(ShuttleGui & S)
    S.EndPanel();
 
    Layout();
-   Fit();
+   GetSizer()->Fit(this);
    SetMinSize(GetSize());
 
    int top = 0;
@@ -563,7 +565,7 @@ void ScreenFrame::DoCapture(wxString captureMode)
 
    mCommand->SetParameter(wxT("CaptureMode"), captureMode);
    if (!mCommand->Apply(mContext))
-      mStatus->SetStatusText(wxT("Capture failed!"), 1);
+      mStatus->SetStatusText(wxT("Capture failed!"), mainStatusBarField);
    Show();
 }
 
@@ -661,7 +663,7 @@ void ScreenFrame::TimeZoom(double seconds)
 {
    int width, height;
    mContext.GetProject()->GetClientSize(&width, &height);
-   mContext.GetProject()->mViewInfo.zoom = (0.75 * width) / seconds;
+   mContext.GetProject()->mViewInfo.SetZoom((0.75 * width) / seconds);
    mContext.GetProject()->RedrawProject();
 }
 

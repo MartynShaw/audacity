@@ -57,13 +57,17 @@ struct CompatibilityEntry
 
 
 /// AC3 export options dialog
-class ExportFFmpegAC3Options : public wxDialog
+class ExportFFmpegAC3Options : public wxPanel
 {
 public:
 
-   ExportFFmpegAC3Options(wxWindow *parent);
+   ExportFFmpegAC3Options(wxWindow *parent, int format);
+   virtual ~ExportFFmpegAC3Options();
+
    void PopulateOrExchange(ShuttleGui & S);
-   void OnOK(wxCommandEvent& event);
+   bool TransferDataToWindow();
+   bool TransferDataFromWindow();
+
    /// Bit Rates supported by AC3 encoder
    static const int iAC3BitRates[];
    /// Sample Rates supported by AC3 encoder (must end with zero-element)
@@ -76,35 +80,35 @@ private:
    wxArrayInt    mBitRateLabels;
 
    wxChoice *mBitRateChoice;
-   wxButton *mOk;
    int mBitRateFromChoice;
-
-   DECLARE_EVENT_TABLE()
 };
 
-class ExportFFmpegAACOptions : public wxDialog
+class ExportFFmpegAACOptions : public wxPanel
 {
 public:
 
-   ExportFFmpegAACOptions(wxWindow *parent);
+   ExportFFmpegAACOptions(wxWindow *parent, int format);
+   virtual ~ExportFFmpegAACOptions();
+
    void PopulateOrExchange(ShuttleGui & S);
-   void OnOK(wxCommandEvent& event);
+   bool TransferDataToWindow();
+   bool TransferDataFromWindow();
 
 private:
 
    wxSpinCtrl *mQualitySpin;
-   wxButton *mOk;
-
-   DECLARE_EVENT_TABLE()
 };
 
-class ExportFFmpegAMRNBOptions : public wxDialog
+class ExportFFmpegAMRNBOptions : public wxPanel
 {
 public:
 
-   ExportFFmpegAMRNBOptions(wxWindow *parent);
+   ExportFFmpegAMRNBOptions(wxWindow *parent, int format);
+   virtual ~ExportFFmpegAMRNBOptions();
+
    void PopulateOrExchange(ShuttleGui & S);
-   void OnOK(wxCommandEvent& event);
+   bool TransferDataToWindow();
+   bool TransferDataFromWindow();
 
    static int iAMRNBBitRate[];
 
@@ -114,19 +118,19 @@ private:
    wxArrayInt    mBitRateLabels;
 
    wxChoice *mBitRateChoice;
-   wxButton *mOk;
    int mBitRateFromChoice;
-
-   DECLARE_EVENT_TABLE()
 };
 
-class ExportFFmpegWMAOptions : public wxDialog
+class ExportFFmpegWMAOptions : public wxPanel
 {
 public:
 
-   ExportFFmpegWMAOptions(wxWindow *parent);
+   ExportFFmpegWMAOptions(wxWindow *parent, int format);
+   ~ExportFFmpegWMAOptions();
+
    void PopulateOrExchange(ShuttleGui & S);
-   void OnOK(wxCommandEvent& event);
+   bool TransferDataToWindow();
+   bool TransferDataFromWindow();
 
    static const int iWMASampleRates[];
    static const int iWMABitRate[];
@@ -137,10 +141,25 @@ private:
    wxArrayInt    mBitRateLabels;
 
    wxChoice *mBitRateChoice;
-   wxButton *mOk;
    int mBitRateFromChoice;
+};
 
-   DECLARE_EVENT_TABLE()
+class ExportFFmpegCustomOptions : public wxPanel
+{
+public:
+
+   ExportFFmpegCustomOptions(wxWindow *parent, int format);
+   ~ExportFFmpegCustomOptions();
+
+   void PopulateOrExchange(ShuttleGui & S);
+   bool TransferDataToWindow();
+   bool TransferDataFromWindow();
+
+   void OnOpen(wxCommandEvent & evt);
+
+private:
+
+   DECLARE_EVENT_TABLE();
 };
 
 /// Entry for the Applicability table

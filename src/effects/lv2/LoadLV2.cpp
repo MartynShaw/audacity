@@ -98,17 +98,17 @@ wxString LV2EffectsModule::GetPath()
 
 wxString LV2EffectsModule::GetSymbol()
 {
-   return wxT("LV2 Effects Module");
+   return XO("LV2 Effects");
 }
 
 wxString LV2EffectsModule::GetName()
 {
-   return _("LV2 Effects Module");
+   return GetSymbol();
 }
 
 wxString LV2EffectsModule::GetVendor()
 {
-   return _("The Audacity Team");
+   return XO("The Audacity Team");
 }
 
 wxString LV2EffectsModule::GetVersion()
@@ -119,7 +119,7 @@ wxString LV2EffectsModule::GetVersion()
 
 wxString LV2EffectsModule::GetDescription()
 {
-   return _("Provides LV2 Effects support to Audacity");
+   return XO("Provides LV2 Effects support to Audacity");
 }
 
 // ============================================================================
@@ -227,7 +227,16 @@ wxArrayString LV2EffectsModule::FindPlugins(PluginManagerInterface & WXUNUSED(pm
    wxArrayString plugins;
    LILV_FOREACH(plugins, i, plugs)
    {
-      plugins.Add(LilvString(lilv_plugin_get_uri(lilv_plugins_get(plugs, i))));
+      const LilvPlugin *plug = lilv_plugins_get(plugs, i);
+
+      // Bypass Instrument (MIDI) plugins for now
+      const LilvPluginClass *cls = lilv_plugin_get_class(plug);
+      if (lilv_node_equals(lilv_plugin_class_get_uri(cls), LV2Effect::gInstrument))
+      {
+         continue;
+      }
+
+      plugins.Add(LilvString(lilv_plugin_get_uri(plug)));
    }
 
    return plugins;

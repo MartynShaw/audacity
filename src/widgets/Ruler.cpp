@@ -76,10 +76,12 @@ array of Ruler::Label.
 #include "../TimeTrack.h"
 #include "../TrackPanel.h"
 #include "../Menus.h"
+#include "../NumberScale.h"
 #include "../Prefs.h"
 #include "../Snap.h"
 
-#define max(a,b)  ( (a<b)?b:a )
+using std::min;
+using std::max;
 
 #define SELECT_TOLERANCE_PIXEL 4
 #define QUICK_PLAY_SNAP_PIXEL 4     // pixel tolerance for snap guides
@@ -96,9 +98,10 @@ array of Ruler::Label.
 //
 
 Ruler::Ruler()
+   : mpNumberScale(0)
 {
-   mMin = 0.0;
-   mMax = 100.0;
+   mMin = mHiddenMin = 0.0;
+   mMax = mHiddenMax = 100.0;
    mOrientation = wxHORIZONTAL;
    mSpacing = 6;
    mHasSetSpacing = false;
@@ -130,13 +133,16 @@ Ruler::Ruler()
    mMinorMinorFont = new wxFont(fontSize - 1, wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL);
    mMinorFont = new wxFont(fontSize, wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_NORMAL);
    mMajorFont = new wxFont(fontSize, wxFONTFAMILY_SWISS, wxFONTSTYLE_NORMAL, wxFONTWEIGHT_BOLD);
+
    mUserFonts = false;
 
+#if !wxCHECK_VERSION(3, 0, 0)
    #ifdef __WXMAC__
    mMinorMinorFont->SetNoAntiAliasing(true);
    mMinorFont->SetNoAntiAliasing(true);
    mMajorFont->SetNoAntiAliasing(true);
    #endif
+#endif
 
    mMajorLabels = 0;
    mMinorLabels = 0;
@@ -157,6 +163,8 @@ Ruler::Ruler()
    mMinorGrid = false;
 
    mTwoTone = false;
+
+   mUseZoomInfo = false;
 }
 
 Ruler::~Ruler()
@@ -174,6 +182,8 @@ Ruler::~Ruler()
       delete[] mMinorLabels;
    if (mMinorMinorLabels)
       delete[] mMinorMinorLabels;
+
+   delete mpNumberScale;
 }
 
 void Ruler::SetTwoTone(bool twoTone)
@@ -231,13 +241,26 @@ void Ruler::SetOrientation(int orient)
 
 void Ruler::SetRange(double min, double max)
 {
+   SetRange(min, max, min, max);
+}
+
+void Ruler::SetRange
+   (double min, double max, double hiddenMin, double hiddenMax)
+{
    // For a horizontal ruler,
    // min is the value in the center of pixel "left",
    // max is the value in the center of pixel "right".
 
-   if (mMin != min || mMax != max) {
+   // In the special case of a time ruler,
+   // hiddenMin and hiddenMax are values that would be shown with the fisheye
+   // turned off.  In other cases they equal min and max respectively.
+
+   if (mMin != min || mMax != max ||
+      mHiddenMin != hiddenMin || mHiddenMax != hiddenMax) {
       mMin = min;
       mMax = max;
+      mHiddenMin = hiddenMin;
+      mHiddenMax = hiddenMax;
 
       Invalidate();
    }
@@ -291,16 +314,35 @@ void Ruler::SetFonts(const wxFont &minorFont, const wxFont &majorFont, const wxF
    *mMinorFont = minorFont;
    *mMajorFont = majorFont;
 
+#if !wxCHECK_VERSION(3, 0, 0)
    #ifdef __WXMAC__
    mMinorMinorFont->SetNoAntiAliasing(true);
    mMinorFont->SetNoAntiAliasing(true);
    mMajorFont->SetNoAntiAliasing(true);
    #endif
+#endif
 
    // Won't override these fonts
    mUserFonts = true;
 
    Invalidate();
+}
+
+void Ruler::SetNumberScale(const NumberScale *pScale)
+{
+   if (!pScale) {
+      if (mpNumberScale) {
+         delete mpNumberScale;
+         Invalidate();
+      }
+   }
+   else {
+      if (!mpNumberScale || *mpNumberScale != *pScale) {
+         delete mpNumberScale;
+         mpNumberScale = new NumberScale(*pScale);
+         Invalidate();
+      }
+   }
 }
 
 void Ruler::OfflimitsPixels(int start, int end)
@@ -947,6 +989,10 @@ void Ruler::Update()
 
 void Ruler::Update(TimeTrack* timetrack)// Envelope *speedEnv, long minSpeed, long maxSpeed )
 {
+   const ZoomInfo *zoomInfo = NULL;
+   if (mUseZoomInfo && !mLog && mOrientation == wxHORIZONTAL)
+      zoomInfo = &GetActiveProject()->GetZoomInfo();
+
    // This gets called when something has been changed
    // (i.e. we've been invalidated).  Recompute all
    // tick positions and font size.
@@ -1063,7 +1109,11 @@ void Ruler::Update(TimeTrack* timetrack)// Envelope *speedEnv, long minSpeed, lo
 
    } else if(mLog==false) {
 
-      double UPP = (mMax-mMin)/mLength;  // Units per pixel
+      // Use the "hidden" min and max to determine the tick size.
+      // That may make a difference with fisheye.
+      // Otherwise you may see the tick size for the whole ruler change
+      // when the fisheye approaches start or end.
+      double UPP = (mHiddenMax-mHiddenMin)/mLength;  // Units per pixel
       FindLinearTickSizes(UPP);
 
       // Left and Right Edges
@@ -1074,59 +1124,62 @@ void Ruler::Update(TimeTrack* timetrack)// Envelope *speedEnv, long minSpeed, lo
 
       // Zero (if it's in the middle somewhere)
       if (mMin * mMax < 0.0) {
-         int mid = (int)(mLength*(mMin/(mMin-mMax)) + 0.5);
-         Tick(mid, 0.0, true, false);
+         int mid;
+         if (zoomInfo != NULL)
+            mid = int(zoomInfo->TimeToPosition(0.0, mLeftOffset));
+         else
+            mid = (int)(mLength*(mMin / (mMin - mMax)) + 0.5);
+         const int iMaxPos = (mOrientation == wxHORIZONTAL) ? mRight : mBottom - 5;
+         if (mid >= 0 && mid < iMaxPos)
+            Tick(mid, 0.0, true, false);
       }
 
       double sg = UPP > 0.0? 1.0: -1.0;
 
-      // Major ticks
-      double d, warpedD;
-      d = mMin - UPP/2;
-      if(timetrack)
-         warpedD = timetrack->ComputeWarpedLength(0.0, d);
-      else
-         warpedD = d;
-      // using ints for majorint doesn't work, as
-      // majorint will overflow and be negative at high zoom.
-      double majorInt = floor(sg * warpedD / mMajor);
-      i = -1;
-      while(i <= mLength) {
-         i++;
-         if(timetrack)
-            warpedD += timetrack->ComputeWarpedLength(d, d + UPP);
-         else
-            warpedD += UPP;
-         d += UPP;
+      // Major and minor ticks
+      for (int jj = 0; jj < 2; ++jj) {
+         const double denom = jj == 0 ? mMajor : mMinor;
+         i = -1; j = 0;
+         double d, warpedD, nextD;
 
-         if (floor(sg * warpedD / mMajor) > majorInt) {
-            majorInt = floor(sg * warpedD / mMajor);
-            Tick(i, sg * majorInt * mMajor, true, false);
+         double prevTime = 0.0, time = 0.0;
+         if (zoomInfo != NULL) {
+            j = zoomInfo->TimeToPosition(mMin);
+            prevTime = zoomInfo->PositionToTime(--j);
+            time = zoomInfo->PositionToTime(++j);
+            d = (prevTime + time) / 2.0;
          }
-      }
-
-      // Minor ticks
-      d = mMin - UPP/2;
-      if(timetrack)
-         warpedD = timetrack->ComputeWarpedLength(0.0, d);
-      else
-         warpedD = d;
-      // using ints for majorint doesn't work, as
-      // majorint will overflow and be negative at high zoom.
-      // MB: I assume the same applies to minorInt
-      double minorInt = floor(sg * warpedD / mMinor);
-      i = -1;
-      while(i <= mLength) {
-         i++;
-         if(timetrack)
-            warpedD += timetrack->ComputeWarpedLength(d, d + UPP);
          else
-            warpedD += UPP;
-         d += UPP;
+            d = mMin - UPP / 2;
+         if (timetrack)
+            warpedD = timetrack->ComputeWarpedLength(0.0, d);
+         else
+            warpedD = d;
+         // using ints doesn't work, as
+         // this will overflow and be negative at high zoom.
+         double step = floor(sg * warpedD / denom);
+         while (i <= mLength) {
+            i++;
+            if (zoomInfo)
+            {
+               prevTime = time;
+               time = zoomInfo->PositionToTime(++j);
+               nextD = (prevTime + time) / 2.0;
+               // wxASSERT(time >= prevTime);
+            }
+            else
+               nextD = d + UPP;
+            if (timetrack)
+               warpedD += timetrack->ComputeWarpedLength(d, nextD);
+            else
+               warpedD = nextD;
+            d = nextD;
 
-         if (floor(sg * warpedD / mMinor) > minorInt) {
-            minorInt = floor(sg * warpedD / mMinor);
-            Tick(i, sg * minorInt * mMinor, false, true);
+            if (floor(sg * warpedD / denom) > step) {
+               step = floor(sg * warpedD / denom);
+               bool major = jj == 0;
+               Tick(i, sg * step * denom, major, !major);
+            }
          }
       }
 
@@ -1135,17 +1188,20 @@ void Ruler::Update(TimeTrack* timetrack)// Envelope *speedEnv, long minSpeed, lo
          Tick(0, mMin, true, false);
          Tick(mLength, mMax, true, false);
       }
-
    }
    else {
       // log case
-      mDigits=2;	//TODO: implement dynamic digit computation
+
+      NumberScale numberScale(mpNumberScale
+         ? *mpNumberScale
+         : NumberScale(nstLogarithmic, mMin, mMax, 1.0f)
+      );
+
+      mDigits=2; //TODO: implement dynamic digit computation
       double loLog = log10(mMin);
       double hiLog = log10(mMax);
-      double scale = mLength/(hiLog - loLog);
       int loDecade = (int) floor(loLog);
 
-      int pos;
       double val;
       double startDecade = pow(10., (double)loDecade);
 
@@ -1153,12 +1209,12 @@ void Ruler::Update(TimeTrack* timetrack)// Envelope *speedEnv, long minSpeed, lo
       double decade = startDecade;
       double delta=hiLog-loLog, steps=fabs(delta);
       double step = delta>=0 ? 10 : 0.1;
-      double rMin=wxMin(mMin, mMax), rMax=wxMax(mMin, mMax);
+      double rMin=std::min(mMin, mMax), rMax=std::max(mMin, mMax);
       for(i=0; i<=steps; i++)
       {  // if(i!=0)
          {  val = decade;
-            if(val > rMin && val < rMax) {
-               pos = (int)(((log10(val) - loLog)*scale)+0.5);
+            if(val >= rMin && val < rMax) {
+               const int pos(0.5 + mLength * numberScale.ValueToPosition(val));
                Tick(pos, val, true, false);
             }
          }
@@ -1178,7 +1234,7 @@ void Ruler::Update(TimeTrack* timetrack)// Envelope *speedEnv, long minSpeed, lo
          for(j=start; j!=end; j+=mstep) {
             val = decade * j;
             if(val >= rMin && val < rMax) {
-               pos = (int)(((log10(val) - loLog)*scale)+0.5);
+               const int pos(0.5 + mLength * numberScale.ValueToPosition(val));
                Tick(pos, val, false, true);
             }
          }
@@ -1193,13 +1249,16 @@ void Ruler::Update(TimeTrack* timetrack)// Envelope *speedEnv, long minSpeed, lo
       {  start=100; end= 10; mstep=-1;
       }
       steps++;
-      for(i=0; i<=steps; i++) {
-         for(int f=start; f!=int(end); f+=mstep) {
-            if (int(f/10)!=f/10.0f) {
-               val = decade * f/10;
-               if(val >= rMin && val < rMax) {
-                  pos = (int)(((log10(val) - loLog)*scale)+0.5);
-               Tick(pos, val, false, false);
+      for (i = 0; i <= steps; i++) {
+         // PRL:  Bug1038.  Don't label 1.6, rounded, as a duplicate tick for "2"
+         if (!(mFormat == IntFormat && decade < 10.0)) {
+            for (int f = start; f != int(end); f += mstep) {
+               if (int(f / 10) != f / 10.0f) {
+                  val = decade * f / 10;
+                  if (val >= rMin && val < rMax) {
+                     const int pos(0.5 + mLength * numberScale.ValueToPosition(val));
+                     Tick(pos, val, false, false);
+                  }
                }
             }
          }
@@ -1538,6 +1597,12 @@ void Ruler::Label::Draw(wxDC&dc, bool twoTone) const
    }
 }
 
+void Ruler::SetUseZoomInfo(int leftOffset)
+{
+   mLeftOffset = leftOffset;
+   mUseZoomInfo = true;
+}
+
 //
 // RulerPanel
 //
@@ -1637,12 +1702,12 @@ AdornedRulerPanel::AdornedRulerPanel(wxWindow* parent,
                                      ViewInfo *viewinfo):
    wxPanel( parent, id, pos, size )
 {
-   SetLabel( _("Vertical Ruler") );
-   SetName( _("Vertical Ruler") );
+   SetLabel( _("Timeline") );
+   SetName(GetLabel());
 
    mLeftOffset = 0;
-   mCurPos = -1;
-   mIndPos = -1;
+   mCurTime = -1;
+   mIndTime = -1;
    mIndType = -1;
    mQuickPlayInd = false;
    mPlayRegionStart = -1;
@@ -1665,6 +1730,7 @@ AdornedRulerPanel::AdornedRulerPanel(wxWindow* parent,
    mInner.width -= 2;      // -2 for left and right bevels
    mInner.height -= 3;     // -3 for top and bottom bevels and bottom line
 
+   ruler.SetUseZoomInfo(mLeftOffset);
    ruler.SetBounds( mInner.GetLeft(),
                     mInner.GetTop(),
                     mInner.GetRight(),
@@ -1677,9 +1743,9 @@ AdornedRulerPanel::AdornedRulerPanel(wxWindow* parent,
 
    mIsRecording = false;
 
-   mTimelineToolTip = gPrefs->Read(wxT("/QuickPlay/ToolTips"), 1L); 
+   mTimelineToolTip = !!gPrefs->Read(wxT("/QuickPlay/ToolTips"), 1L);
    mPlayRegionDragsSelection = (gPrefs->Read(wxT("/QuickPlay/DragSelection"), 0L) == 1)? true : false; 
-   mQuickPlayEnabled = gPrefs->Read(wxT("/QuickPlay/QuickPlayEnabled"), 1L); 
+   mQuickPlayEnabled = !!gPrefs->Read(wxT("/QuickPlay/QuickPlayEnabled"), 1L);
 
    UpdatePrefs();
 
@@ -1717,6 +1783,11 @@ void AdornedRulerPanel::UpdatePrefs()
 #endif
 #endif
    RegenerateTooltips();
+}
+
+void AdornedRulerPanel::InvalidateRuler()
+{
+   ruler.Invalidate();
 }
 
 void AdornedRulerPanel::RegenerateTooltips()
@@ -1800,6 +1871,10 @@ void AdornedRulerPanel::OnPaint(wxPaintEvent & WXUNUSED(evt))
 void AdornedRulerPanel::OnSize(wxSizeEvent & WXUNUSED(evt))
 {
    mOuter = GetClientRect();
+   if (mOuter.GetWidth() == 0 || mOuter.GetHeight() == 0)
+   {
+      return;
+   }
 
    mInner = mOuter;
    mInner.x += 1;          // +1 for left bevel
@@ -1822,19 +1897,18 @@ void AdornedRulerPanel::OnSize(wxSizeEvent & WXUNUSED(evt))
    Refresh( false );
 }
 
-double AdornedRulerPanel::Pos2Time(int p)
+double AdornedRulerPanel::Pos2Time(int p, bool ignoreFisheye)
 {
-   return (p-mLeftOffset) / mViewInfo->zoom + mViewInfo->h;
+   return mViewInfo->PositionToTime(p, mLeftOffset
+      , ignoreFisheye
+   );
 }
 
-int AdornedRulerPanel::Time2Pos(double t)
+int AdornedRulerPanel::Time2Pos(double t, bool ignoreFisheye)
 {
-   return mLeftOffset + Seconds2Pixels(t-mViewInfo->h);
-}
-
-int AdornedRulerPanel::Seconds2Pixels(double t)
-{
-   return (int)(t * mViewInfo->zoom + 0.5);
+   return mViewInfo->TimeToPosition(t, mLeftOffset
+      , ignoreFisheye
+   );
 }
 
 
@@ -1867,8 +1941,8 @@ void AdornedRulerPanel::OnMouseEvents(wxMouseEvent &evt)
    TrackPanel *tp = mProject->GetTrackPanel();
    int mousePosX, width, height;
    tp->GetTracksUsableArea(&width, &height);
-   mousePosX = wxMax(evt.GetX(), tp->GetLeftOffset());
-   mousePosX = wxMin(mousePosX, tp->GetLeftOffset() + width - 1);
+   mousePosX = std::max(evt.GetX(), tp->GetLeftOffset());
+   mousePosX = std::min(mousePosX, tp->GetLeftOffset() + width - 1);
 
    bool isWithinStart = IsWithinMarker(mousePosX, mOldPlayRegionStart);
    bool isWithinEnd = IsWithinMarker(mousePosX, mOldPlayRegionEnd);
@@ -1883,7 +1957,7 @@ void AdornedRulerPanel::OnMouseEvents(wxMouseEvent &evt)
    mLastMouseX = mousePosX;
    mQuickPlayPos = Pos2Time(mousePosX);
    // If not looping, restrict selection to end of project
-   if (!evt.ShiftDown()) mQuickPlayPos = wxMin(t1, mQuickPlayPos);
+   if (!evt.ShiftDown()) mQuickPlayPos = std::min(t1, mQuickPlayPos);
 
 
    if (evt.Leaving()) {
@@ -1924,7 +1998,6 @@ void AdornedRulerPanel::OnMouseEvents(wxMouseEvent &evt)
    if (!mQuickPlayEnabled)
       return;
 
-
    HandleSnapping();
 
    if (evt.LeftDown())
@@ -1945,7 +2018,10 @@ void AdornedRulerPanel::OnMouseEvents(wxMouseEvent &evt)
             mMouseEventState = mesSelectingPlayRegionClick;
          // otherwise check which marker is nearer
          else {
-            if (fabs(mQuickPlayPos - mOldPlayRegionStart) < fabs(mQuickPlayPos - mOldPlayRegionEnd))
+            // Don't compare times, compare positions.
+            //if (fabs(mQuickPlayPos - mPlayRegionStart) < fabs(mQuickPlayPos - mPlayRegionEnd))
+            if (abs(Time2Pos(mQuickPlayPos) - Time2Pos(mPlayRegionStart)) <
+               abs(Time2Pos(mQuickPlayPos) - Time2Pos(mPlayRegionEnd)))
                mMouseEventState = mesDraggingPlayRegionStart;
             else
                mMouseEventState = mesDraggingPlayRegionEnd;
@@ -2188,7 +2264,7 @@ void AdornedRulerPanel::ShowMenu(const wxPoint & pos)
    DrawQuickPlayIndicator(&cdc, true);
 }
 
-void AdornedRulerPanel::OnToggleQuickPlay(wxCommandEvent& evt)
+void AdornedRulerPanel::OnToggleQuickPlay(wxCommandEvent&)
 {
    mQuickPlayEnabled = (mQuickPlayEnabled)? false : true;
    gPrefs->Write(wxT("/QuickPlay/QuickPlayEnabled"), mQuickPlayEnabled);
@@ -2196,7 +2272,7 @@ void AdornedRulerPanel::OnToggleQuickPlay(wxCommandEvent& evt)
    RegenerateTooltips();
 }
 
-void AdornedRulerPanel::OnSyncSelToQuickPlay(wxCommandEvent& evt)
+void AdornedRulerPanel::OnSyncSelToQuickPlay(wxCommandEvent&)
 {
    mPlayRegionDragsSelection = (mPlayRegionDragsSelection)? false : true;
    gPrefs->Write(wxT("/QuickPlay/DragSelection"), mPlayRegionDragsSelection);
@@ -2225,7 +2301,7 @@ void AdornedRulerPanel::HandleSnapping()
       delete mSnapManager;
    }
    mSnapManager = new SnapManager(mProject->GetTracks(), NULL,
-                                 mViewInfo->zoom,
+                                 *mViewInfo,
                                  QUICK_PLAY_SNAP_PIXEL);
    bool snappedPoint, snappedTime;
    mIsSnapped = (mSnapManager->Snap(NULL, mQuickPlayPos, false,
@@ -2233,7 +2309,7 @@ void AdornedRulerPanel::HandleSnapping()
 }
 
 
-void AdornedRulerPanel::OnTimelineToolTips(wxCommandEvent& evt)
+void AdornedRulerPanel::OnTimelineToolTips(wxCommandEvent&)
 {
    mTimelineToolTip = (mTimelineToolTip)? false : true;
    gPrefs->Write(wxT("/QuickPlay/ToolTips"), mTimelineToolTip);
@@ -2244,7 +2320,7 @@ void AdornedRulerPanel::OnTimelineToolTips(wxCommandEvent& evt)
 }
 
 
-void AdornedRulerPanel::OnAutoScroll(wxCommandEvent& evt)
+void AdornedRulerPanel::OnAutoScroll(wxCommandEvent&)
 {
    if (mViewInfo->bUpdateTrackIndicator)
       gPrefs->Write(wxT("/GUI/AutoScroll"), false);
@@ -2255,7 +2331,7 @@ void AdornedRulerPanel::OnAutoScroll(wxCommandEvent& evt)
 }
 
 
-void AdornedRulerPanel::OnLockPlayRegion(wxCommandEvent& evt)
+void AdornedRulerPanel::OnLockPlayRegion(wxCommandEvent&)
 {
    if (mProject->IsPlayRegionLocked())
       mProject->OnUnlockPlayRegion();
@@ -2341,11 +2417,13 @@ void AdornedRulerPanel::DoDrawBorder(wxDC * dc)
 
 void AdornedRulerPanel::DoDrawMarks(wxDC * dc, bool /*text */ )
 {
-   double min = mViewInfo->h - mLeftOffset / mViewInfo->zoom;
-   double max = min + mInner.width / mViewInfo->zoom;
+   const double min = Pos2Time(0);
+   const double hiddenMin = Pos2Time(0, true);
+   const double max = Pos2Time(mInner.width);
+   const double hiddenMax = Pos2Time(mInner.width, true);
 
    ruler.SetTickColour( theTheme.Colour( clrTrackPanelText ) );
-   ruler.SetRange( min, max );
+   ruler.SetRange( min, max, hiddenMin, hiddenMax );
    ruler.Draw( *dc );
 }
 
@@ -2357,20 +2435,8 @@ void AdornedRulerPanel::DrawSelection()
 void AdornedRulerPanel::DoDrawSelection(wxDC * dc)
 {
    // Draw selection
-   double zoom = mViewInfo->zoom;
-   double sel0 =
-      mViewInfo->selectedRegion.t0() - mViewInfo->h + mLeftOffset / zoom;
-   double sel1 =
-      mViewInfo->selectedRegion.t1() - mViewInfo->h + mLeftOffset / zoom;
-
-   if( sel0 < 0.0 )
-      sel0 = 0.0;
-
-   if( sel1 > ( mInner.width / zoom ) )
-      sel1 = mInner.width / zoom;
-
-   int p0 = int ( sel0 * zoom + 1.5 );
-   int p1 = int ( sel1 * zoom + 2.5 );
+   const int p0 = 1 + max(0, Time2Pos(mViewInfo->selectedRegion.t0()));
+   const int p1 = 2 + min(mInner.width, Time2Pos(mViewInfo->selectedRegion.t1()));
 
    dc->SetBrush( wxBrush( theTheme.Colour( clrRulerBackground )) );
    dc->SetPen(   wxPen(   theTheme.Colour( clrRulerBackground )) );
@@ -2383,16 +2449,22 @@ void AdornedRulerPanel::DoDrawSelection(wxDC * dc)
    dc->DrawRectangle( r );
 }
 
-void AdornedRulerPanel::DrawCursor(double pos)
+void AdornedRulerPanel::SetLeftOffset(int offset)
 {
-   mCurPos = pos;
+   mLeftOffset = offset;
+   ruler.SetUseZoomInfo(offset);
+}
+
+void AdornedRulerPanel::DrawCursor(double time)
+{
+   mCurTime = time;
 
    Refresh(false);
 }
 
 void AdornedRulerPanel::DoDrawCursor(wxDC * dc)
 {
-   int x = mLeftOffset + int ( ( mCurPos - mViewInfo->h ) * mViewInfo->zoom );
+   const int x = Time2Pos(mCurTime);
 
    // Draw cursor in ruler
    dc->DrawLine( x, 1, x, mInner.height );
@@ -2409,11 +2481,11 @@ void AdornedRulerPanel::ClearIndicator()
    Refresh(false);
 }
 
-void AdornedRulerPanel::DrawIndicator( double pos, bool rec )
+void AdornedRulerPanel::DrawIndicator( double time, bool rec )
 {
-   mIndPos = pos;
+   mIndTime = time;
 
-   if( mIndPos < 0 )
+   if (mIndTime < 0)
    {
       ClearIndicator();
       return;
@@ -2432,7 +2504,7 @@ void AdornedRulerPanel::DoDrawIndicator(wxDC * dc)
    }
 
    int indsize = 6;
-   int x = mLeftOffset + int ( ( mIndPos - mViewInfo->h ) * mViewInfo->zoom );
+   const int x = Time2Pos(mIndTime);
 
    wxPoint tri[ 3 ];
    tri[ 0 ].x = x - indsize;
@@ -2452,14 +2524,14 @@ void AdornedRulerPanel::DrawQuickPlayIndicator(wxDC * dc, bool clear)
    TrackPanel *tp = mProject->GetTrackPanel();
    wxClientDC cdc(tp);
 
-   double latestEnd = wxMax(mProject->GetTracks()->GetEndTime(), mProject->GetSel1());
+   double latestEnd = std::max(mProject->GetTracks()->GetEndTime(), mProject->GetSel1());
    if (clear || (mQuickPlayPos >= latestEnd)) {
       tp->TrackPanel::DrawQuickPlayIndicator(cdc, -1);
       return;
    }
 
    int indsize = 4;
-   int x = mLeftOffset + int((mQuickPlayPos - mViewInfo->h) * mViewInfo->zoom);
+   int x = Time2Pos(mQuickPlayPos);
 
    wxPoint tri[3];
    tri[0].x = -indsize;

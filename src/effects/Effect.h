@@ -20,25 +20,33 @@
 #include <wx/string.h>
 #include <wx/tglbtn.h>
 
+class wxCheckBox;
+class wxChoice;
 class wxDialog;
+class wxListBox;
 class wxWindow;
 
 #include "audacity/ConfigInterface.h"
 #include "audacity/EffectInterface.h"
 
 #include "../Experimental.h"
-#include "../WaveTrack.h"
 #include "../SelectedRegion.h"
 #include "../Shuttle.h"
-#include "../ShuttleGui.h"
 #include "../Internat.h"
 #include "../widgets/ProgressDialog.h"
 
-#define BUILTIN_EFFECT_PREFIX wxT("Builtin Effect: ")
+class ShuttleGui;
 
+#define BUILTIN_EFFECT_PREFIX wxT("Built-in Effect: ")
+
+class AudacityProject;
 class SelectedRegion;
 class TimeWarper;
 class EffectUIHost;
+class Track;
+class TrackList;
+class TrackFactory;
+class WaveTrack;
 
 // TODO:  Apr-06-2015
 // TODO:  Much more cleanup of old methods and variables is needed, but
@@ -146,6 +154,7 @@ class AUDACITY_DLL_API Effect : public wxEvtHandler,
    virtual double GetDefaultDuration();
    virtual double GetDuration();
    virtual wxString GetDurationFormat();
+   virtual wxString GetSelectionFormat(); // time format in Selection toolbar
    virtual void SetDuration(double duration);
 
    virtual bool Apply();
@@ -332,7 +341,8 @@ protected:
 
    // Use these two methods to copy the input tracks to mOutputTracks, if
    // doing the processing on them, and replacing the originals only on success (and not cancel).
-   void CopyInputTracks(int trackType = Track::Wave);
+   void CopyInputTracks(); // trackType = Track::Wave
+   void CopyInputTracks(int trackType);
 
    // If bGoodResult, replace mWaveTracks tracks in mTracks with successfully processed
    // mOutputTracks copies, get rid of old mWaveTracks, and set mWaveTracks to mOutputTracks.

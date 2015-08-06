@@ -21,11 +21,27 @@
 #include <wx/string.h>
 #include <wx/textctrl.h>
 
-#include "../ShuttleGui.h"
-
 #include "Effect.h"
 
+class ShuttleGui;
+
 #define WAHWAH_PLUGIN_SYMBOL XO("Wahwah")
+
+class EffectWahwahState
+{
+public:
+   float samplerate;
+   double depth;
+   double freqofs;
+   double phase;
+   double outgain;
+   double lfoskip;
+   unsigned long skipcount;
+   double xn1, xn2, yn1, yn2;
+   double b0, b1, b2, a0, a1, a2;
+};
+
+WX_DECLARE_OBJARRAY(EffectWahwahState, EffectWahwahStateArray);
 
 class EffectWahwah : public Effect
 {
@@ -41,6 +57,7 @@ public:
    // EffectIdentInterface implementation
 
    virtual EffectType GetType();
+   virtual bool SupportsRealtime();
 
    // EffectClientInterface implementation
 
@@ -48,6 +65,13 @@ public:
    virtual int GetAudioOutCount();
    virtual bool ProcessInitialize(sampleCount totalLen, ChannelNames chanMap = NULL);
    virtual sampleCount ProcessBlock(float **inBlock, float **outBlock, sampleCount blockLen);
+   virtual bool RealtimeInitialize();
+   virtual bool RealtimeAddProcessor(int numChannels, float sampleRate);
+   virtual bool RealtimeFinalize();
+   virtual sampleCount RealtimeProcess(int group,
+                                       float **inbuf,
+                                       float **outbuf,
+                                       sampleCount numSamples);
    virtual bool GetAutomationParameters(EffectAutomationParameters & parms);
    virtual bool SetAutomationParameters(EffectAutomationParameters & parms);
 
@@ -60,33 +84,34 @@ public:
 private:
    // EffectWahwah implementation
 
+   void InstanceInit(EffectWahwahState & data, float sampleRate);
+   sampleCount InstanceProcess(EffectWahwahState & data, float **inBlock, float **outBlock, sampleCount blockLen);
+
    void OnFreqSlider(wxCommandEvent & evt);
    void OnPhaseSlider(wxCommandEvent & evt);
    void OnDepthSlider(wxCommandEvent & evt);
    void OnResonanceSlider(wxCommandEvent & evt);
    void OnFreqOffSlider(wxCommandEvent & evt);
+   void OnGainSlider(wxCommandEvent & evt);
 
    void OnFreqText(wxCommandEvent & evt);
    void OnPhaseText(wxCommandEvent & evt);
    void OnDepthText(wxCommandEvent & evt);
    void OnResonanceText(wxCommandEvent & evt);
    void OnFreqOffText(wxCommandEvent & evt);
+   void OnGainText(wxCommandEvent & evt);
 
 private:
-   double depth;
-   double freqofs;
-   double phase;
-   double lfoskip;
-   unsigned long skipcount;
-   double xn1, xn2, yn1, yn2;
-   double b0, b1, b2, a0, a1, a2;
+   EffectWahwahState mMaster;
+   EffectWahwahStateArray mSlaves;
 
-/* Parameters:
+   /* Parameters:
    mFreq - LFO frequency
    mPhase - LFO startphase in RADIANS - useful for stereo WahWah
    mDepth - Wah depth
    mRes - Resonance
    mFreqOfs - Wah frequency offset
+   mOutGain - output gain
 
    !!!!!!!!!!!!! IMPORTANT!!!!!!!!! :
    mDepth and mFreqOfs should be from 0(min) to 1(max) !
@@ -97,18 +122,21 @@ private:
    int mDepth;
    double mRes;
    int mFreqOfs;
+   double mOutGain;
 
    wxTextCtrl *mFreqT;
    wxTextCtrl *mPhaseT;
    wxTextCtrl *mDepthT;
    wxTextCtrl *mResT;
    wxTextCtrl *mFreqOfsT;
+   wxTextCtrl *mOutGainT;
 
    wxSlider *mFreqS;
    wxSlider *mPhaseS;
    wxSlider *mDepthS;
    wxSlider *mResS;
    wxSlider *mFreqOfsS;
+   wxSlider *mOutGainS;
 
    DECLARE_EVENT_TABLE();
 };

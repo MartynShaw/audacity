@@ -14,15 +14,16 @@
 *//*******************************************************************/
 
 #include "../Audacity.h"
+#include "DtmfGen.h"
 
 #include <wx/intl.h>
 #include <wx/valgen.h>
 #include <wx/valtext.h>
 
 #include "../Prefs.h"
+#include "../ShuttleGui.h"
 #include "../widgets/valnum.h"
 
-#include "DtmfGen.h"
 
 enum
 {
@@ -278,6 +279,13 @@ bool EffectDtmf::Startup()
       gPrefs->Write(base + wxT("Migrated"), true);
       gPrefs->Flush();
    }
+
+   return true;
+}
+
+bool EffectDtmf::Init()
+{
+   Recalculate();
 
    return true;
 }

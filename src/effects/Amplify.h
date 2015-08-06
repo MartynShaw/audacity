@@ -21,11 +21,11 @@
 #include <wx/string.h>
 #include <wx/textctrl.h>
 
-#include "../ShuttleGui.h"
-
 #include "Effect.h"
 
 #define AMPLIFY_PLUGIN_SYMBOL XO("Amplify")
+
+class ShuttleGui;
 
 class EffectAmplify : public Effect
 {
@@ -49,6 +49,7 @@ public:
    virtual sampleCount ProcessBlock(float **inBlock, float **outBlock, sampleCount blockLen);
    virtual bool GetAutomationParameters(EffectAutomationParameters & parms);
    virtual bool SetAutomationParameters(EffectAutomationParameters & parms);
+   virtual bool LoadFactoryDefaults();
 
    // Effect implementation
 

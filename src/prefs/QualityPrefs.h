@@ -19,11 +19,11 @@
 #include <wx/dynarray.h>
 #include <wx/textctrl.h>
 
-#include "../ShuttleGui.h"
-
 #include "PrefsPanel.h"
 
-class QualityPrefs:public PrefsPanel
+class ShuttleGui;
+
+class QualityPrefs :public PrefsPanel
 {
  public:
    QualityPrefs(wxWindow * parent);
@@ -53,4 +53,9 @@ class QualityPrefs:public PrefsPanel
    DECLARE_EVENT_TABLE();
 };
 
+class QualityPrefsFactory : public PrefsPanelFactory
+{
+public:
+   virtual PrefsPanel *Create(wxWindow *parent);
+};
 #endif

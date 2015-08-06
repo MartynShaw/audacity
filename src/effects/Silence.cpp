@@ -14,10 +14,12 @@
 *//*******************************************************************/
 
 #include "../Audacity.h"
+#include "Silence.h"
 
 #include <wx/intl.h>
 
-#include "Silence.h"
+#include "../ShuttleGui.h"
+#include "../WaveTrack.h"
 
 EffectSilence::EffectSilence()
 {

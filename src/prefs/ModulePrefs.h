@@ -17,10 +17,10 @@
 
 #include <wx/window.h>
 
-#include "../ShuttleGui.h"
-
 #include "PrefsPanel.h"
 
+
+class ShuttleGui;
 
 enum {
    kModuleDisabled = 0,
@@ -50,4 +50,9 @@ class ModulePrefs:public PrefsPanel
    wxArrayString mPaths;
 };
 
+class ModulePrefsFactory : public PrefsPanelFactory
+{
+public:
+   virtual PrefsPanel *Create(wxWindow *parent);
+};
 #endif

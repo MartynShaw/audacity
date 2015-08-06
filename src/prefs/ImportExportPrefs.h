@@ -17,11 +17,11 @@
 
 #include <wx/window.h>
 
-#include "../ShuttleGui.h"
-
 #include "PrefsPanel.h"
 
-class ImportExportPrefs:public PrefsPanel
+class ShuttleGui;
+
+class ImportExportPrefs :public PrefsPanel
 {
  public:
    ImportExportPrefs(wxWindow * parent);
@@ -33,4 +33,9 @@ class ImportExportPrefs:public PrefsPanel
    void PopulateOrExchange(ShuttleGui & S);
 };
 
+class ImportExportPrefsFactory : public PrefsPanelFactory
+{
+public:
+   virtual PrefsPanel *Create(wxWindow *parent);
+};
 #endif

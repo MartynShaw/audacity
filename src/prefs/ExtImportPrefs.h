@@ -16,15 +16,15 @@
 #include <wx/window.h>
 #include "../widgets/Grid.h"
 
-#include "../ShuttleGui.h"
-
 #include "PrefsPanel.h"
 
 #include "../import/Import.h"
 #include "../import/ImportPlugin.h"
 
+class wxButton;
 class wxListEvent;
 class ExtImportPrefs;
+class ShuttleGui;
 
 class ExtImportPrefsDropTarget: public wxDropTarget
 {
@@ -107,4 +107,10 @@ class ExtImportPrefs:public PrefsPanel
    DECLARE_EVENT_TABLE()
 };
 
+
+class ExtImportPrefsFactory : public PrefsPanelFactory
+{
+public:
+   virtual PrefsPanel *Create(wxWindow *parent);
+};
 #endif

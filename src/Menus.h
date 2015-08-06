@@ -259,7 +259,7 @@ void OnSelectAllTracks();
 
 void OnZoomIn();
 void OnZoomOut();
-void OnZoomToggle();
+// void OnZoomToggle();
 void OnZoomNormal();
 void OnZoomFit();
 void OnZoomFitV();
@@ -298,7 +298,6 @@ void OnShowSpectralSelectionToolBar();
 void OnShowToolsToolBar();
 void OnShowTranscriptionToolBar();
 void OnResetToolBars();
-void OnSimplifiedView();
 
         // Transport Menu
 

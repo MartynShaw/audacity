@@ -15,16 +15,17 @@
 *//*******************************************************************/
 
 #include "../Audacity.h"
+#include "Reverb.h"
 
 #include <wx/arrstr.h>
 #include <wx/intl.h>
 
 #include "../Audacity.h"
 #include "../Prefs.h"
+#include "../ShuttleGui.h"
 #include "../widgets/valnum.h"
 
 #include "Reverb_libSoX.h"
-#include "Reverb.h"
 
 enum 
 {
@@ -61,7 +62,7 @@ static const struct
 }
 FactoryPresets[] =
 {
-   //                               Room  Pre            Hf       Tone Tone  Wet   Dry   Stereo Wet
+   //                         Room  Pre            Hf       Tone Tone  Wet   Dry   Stereo Wet
    // Name                    Size, Delay, Reverb, Damping, Low, High, Gain, Gain, Width, Only
    XO("Vocal I" ),          { 70,   20,    40,     99,      100, 50,   -12,  0,    70,    false },
    XO("Vocal II"),          { 50,   0,     50,     99,      50,  100,  -1,   -1,   70,    false },
@@ -220,7 +221,7 @@ sampleCount EffectReverb::ProcessBlock(float **inBlock, float **outBlock, sample
 
    while (remaining)
    {
-      size_t len = min((size_t) remaining, (size_t) BLOCK);
+      sampleCount len = wxMin(remaining, BLOCK);
       for (int c = 0; c < mNumChans; c++)
       {
          // Write the input samples to the reverb fifo.  Returned value is the address of the
@@ -311,7 +312,7 @@ wxArrayString EffectReverb::GetFactoryPresets()
 {
    wxArrayString names;
 
-   for (int i = 0; i < WXSIZEOF(FactoryPresets); i++)
+   for (size_t i = 0; i < WXSIZEOF(FactoryPresets); i++)
    {
       names.Add(wxGetTranslation(FactoryPresets[i].name));
    }

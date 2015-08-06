@@ -32,7 +32,7 @@
 // Increment as appropriate every time we release a new version.
 #define AUDACITY_VERSION   2
 #define AUDACITY_RELEASE   1
-#define AUDACITY_REVISION  1
+#define AUDACITY_REVISION  2
 #define AUDACITY_MODLEVEL  0
 
 #if IS_ALPHA
@@ -152,8 +152,11 @@ void QuitAudacity();
    #endif
 #endif
 
-// This macro is used widely, so declared here.
-#define QUANTIZED_TIME(time, rate) ((double)((sampleCount)floor(((double)(time) * (rate)) + 0.5))) / (rate)
+// These macros are used widely, so declared here.
+#define QUANTIZED_TIME(time, rate) (((double)((sampleCount)floor(((double)(time) * (rate)) + 0.5))) / (rate))
+// dB - linear amplitude convesions
+#define DB_TO_LINEAR(x) (pow(10.0, (x) / 20.0))
+#define LINEAR_TO_DB(x) (20.0 * log10(x))
 
 // Marks strings for extraction only...must use wxGetTranslation() to translate.
 #define XO(s) wxT(s)

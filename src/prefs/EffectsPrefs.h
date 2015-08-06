@@ -18,11 +18,11 @@
 #include <wx/arrstr.h>
 #include <wx/window.h>
 
-#include "../ShuttleGui.h"
-
 #include "PrefsPanel.h"
 
-class EffectsPrefs:public PrefsPanel
+class ShuttleGui;
+
+class EffectsPrefs :public PrefsPanel
 {
  public:
    EffectsPrefs(wxWindow * parent);
@@ -34,4 +34,9 @@ class EffectsPrefs:public PrefsPanel
    void PopulateOrExchange(ShuttleGui & S);
 };
 
+class EffectsPrefsFactory : public PrefsPanelFactory
+{
+public:
+   virtual PrefsPanel *Create(wxWindow *parent);
+};
 #endif

@@ -59,8 +59,15 @@ for drawing different aspects of the label and its text box.
 #include "TrackArtist.h"
 #include "commands/CommandManager.h"
 
-#include "CaptureEvents.h"
 #include "effects/TimeWarper.h"
+
+enum
+{
+   OnCutSelectedTextID = 1,      // OSX doesn't like a 0 menu id
+   OnCopySelectedTextID,
+   OnPasteSelectedTextID,
+   OnDeleteSelectedLabelID,
+};
 
 wxFont LabelTrack::msFont;
 
@@ -444,7 +451,7 @@ void LabelTrack::ComputeTextPosition(const wxRect & r, int index)
 /// ComputeLayout determines which row each label
 /// should be placed on, and reserves space for it.
 /// Function assumes that the labels are sorted.
-void LabelTrack::ComputeLayout(const wxRect & r, double h, double pps)
+void LabelTrack::ComputeLayout(const wxRect & r, const ZoomInfo &zoomInfo)
 {
    int i;
    int iRow;
@@ -461,15 +468,17 @@ void LabelTrack::ComputeLayout(const wxRect & r, double h, double pps)
    const int nRows = wxMin((r.height / yRowHeight) + 1, MAX_NUM_ROWS);
    // Initially none of the rows have been used.
    // So set a value that is less than any valid value.
-   const int xStart = r.x -(int)(h*pps) -100;
-   for(i=0;i<MAX_NUM_ROWS;i++)
-      xUsed[i]=xStart;
+   {
+      const int xStart = zoomInfo.TimeToPosition(0.0, r.x) - 100;
+      for(i=0;i<MAX_NUM_ROWS;i++)
+         xUsed[i]=xStart;
+   }
    int nRowsUsed=0;
 
    for (i = 0; i < (int)mLabels.Count(); i++)
    {
-      int x  = r.x + (int) ((mLabels[i]->getT0()  - h) * pps);
-      int x1 = r.x + (int) ((mLabels[i]->getT1() - h) * pps);
+      const int x = zoomInfo.TimeToPosition(mLabels[i]->getT0(), r.x);
+      const int x1 = zoomInfo.TimeToPosition(mLabels[i]->getT1(), r.x);
       int y = r.y;
 
       mLabels[i]->x=x;
@@ -727,8 +736,9 @@ bool LabelTrack::CalcCursorX(wxWindow * parent, int * x)
 /// Draw calls other functions to draw the LabelTrack.
 ///   @param  dc the device context
 ///   @param  r  the LabelTrack rectangle.
-void LabelTrack::Draw(wxDC & dc, const wxRect & r, double h, double pps,
-                      double sel0, double sel1)
+void LabelTrack::Draw(wxDC & dc, const wxRect & r,
+   const SelectedRegion &selectedRegion,
+   const ZoomInfo &zoomInfo)
 {
    if(msFont.Ok())
       dc.SetFont(msFont);
@@ -738,15 +748,11 @@ void LabelTrack::Draw(wxDC & dc, const wxRect & r, double h, double pps,
 
    TrackArtist::DrawBackgroundWithSelection(&dc, r, this,
          AColor::labelSelectedBrush, AColor::labelUnselectedBrush,
-         sel0, sel1, h, pps);
+         selectedRegion, zoomInfo);
 
    int i;
 
-#ifdef __WXMAC__
-   long textWidth, textHeight;
-#else
-   int textWidth, textHeight;
-#endif
+   wxCoord textWidth, textHeight;
 
    // Get the text widths.
    // TODO: Make more efficient by only re-computing when a
@@ -765,7 +771,7 @@ void LabelTrack::Draw(wxDC & dc, const wxRect & r, double h, double pps,
    // happens with a new label track.
    dc.GetTextExtent(wxT("Demo Text x^y"), &textWidth, &textHeight);
    mTextHeight = (int)textHeight;
-   ComputeLayout( r, h , pps );
+   ComputeLayout( r, zoomInfo );
    dc.SetTextForeground(theTheme.Colour( clrLabelTrackText));
    dc.SetBackgroundMode(wxTRANSPARENT);
    dc.SetBrush(AColor::labelTextNormalBrush);
@@ -978,9 +984,6 @@ bool LabelTrack::CutSelectedText()
 
    // copy data onto clipboard
    if (wxTheClipboard->Open()) {
-#if defined(__WXGTK__) && defined(HAVE_GTK) && !wxCHECK_VERSION(3, 0, 0)
-      CaptureEvents capture;
-#endif
       wxTheClipboard->SetData(new wxTextDataObject(data));
       wxTheClipboard->Close();
    }
@@ -1013,9 +1016,6 @@ bool LabelTrack::CopySelectedText()
 
    // copy the data on clipboard
    if (wxTheClipboard->Open()) {
-#if defined(__WXGTK__) && defined(HAVE_GTK) && !wxCHECK_VERSION(3, 0, 0)
-      CaptureEvents capture;
-#endif
       wxTheClipboard->SetData(new wxTextDataObject(data));
       wxTheClipboard->Close();
    }
@@ -1039,9 +1039,6 @@ bool LabelTrack::PasteSelectedText(double sel0, double sel1)
    // if text data is available
    if (IsTextClipSupported()) {
       if (wxTheClipboard->Open()) {
-#if defined(__WXGTK__) && defined(HAVE_GTK) && !wxCHECK_VERSION(3, 0, 0)
-         CaptureEvents capture;
-#endif
          wxTextDataObject data;
          wxTheClipboard->GetData(data);
          wxTheClipboard->Close();
@@ -1096,24 +1093,7 @@ bool LabelTrack::PasteSelectedText(double sel0, double sel1)
 /// @return true if the text data is available in the clipboard, false otherwise
 bool LabelTrack::IsTextClipSupported()
 {
-#if defined(__WXGTK__) && defined(HAVE_GTK) && !wxCHECK_VERSION(3, 0, 0)
-   CaptureEvents capture;
-#endif
-
-#if defined(__WXGTK__)
-   // AWD: work-around for bug 154: do not call wxClipboard::IsSupported()
-   // when handling a keyboard event
-   if (!wxGetApp().inKbdHandler) {
-#endif
-
-      return wxTheClipboard->IsSupported(wxDF_TEXT);
-
-#if defined (__WXGTK__)
-   }
-
-   // In keyboard handler; return false for now
-   return false;
-#endif
+   return wxTheClipboard->IsSupported(wxDF_TEXT);
 }
 
 
@@ -1382,7 +1362,7 @@ static int Constrain( int value, int min, int max )
 /// HandleMouse gets called with every mouse move or click.
 ///
 bool LabelTrack::HandleMouse(const wxMouseEvent & evt,
-                             wxRect & r, double h, double pps,
+                             wxRect & r, const ZoomInfo &zoomInfo,
                              SelectedRegion *newSel)
 {
    if(evt.LeftUp())
@@ -1454,7 +1434,7 @@ bool LabelTrack::HandleMouse(const wxMouseEvent & evt,
          bool bLabelMoving = mbIsMoving;
          bLabelMoving ^= evt.ShiftDown();
          bLabelMoving |= mMouseOverLabelLeft==mMouseOverLabelRight;
-         double fNewX = h + x / pps;
+         double fNewX = zoomInfo.PositionToTime(x, 0);
          if( bLabelMoving )
          {
             MayMoveLabel( mMouseOverLabelLeft,  -1, fNewX );
@@ -1552,7 +1532,7 @@ bool LabelTrack::HandleMouse(const wxMouseEvent & evt,
          {
             t = mLabels[mMouseOverLabelLeft]->getT0();
          }
-         mxMouseDisplacement = (int)((((t-h) * pps) + r.x )-evt.m_x);
+         mxMouseDisplacement = zoomInfo.TimeToPosition(t, r.x) - evt.m_x;
          return false;
       }
 
@@ -1584,7 +1564,7 @@ bool LabelTrack::HandleMouse(const wxMouseEvent & evt,
          if (mSelIndex != -1) {
             if (!OverTextBox(mLabels[mSelIndex], evt.m_x, evt.m_y))
                mSelIndex = -1;
-            double t = h + (evt.m_x - r.x) / pps;
+            double t = zoomInfo.PositionToTime(evt.m_x, r.x);
             *newSel = SelectedRegion(t, t);
          }
 
@@ -1614,6 +1594,13 @@ bool LabelTrack::HandleMouse(const wxMouseEvent & evt,
       }
    }
 
+   if (evt.RightUp()) {
+      if ((mSelIndex != -1) && OverTextBox(GetLabel(mSelIndex), evt.m_x, evt.m_y)) {
+         // popup menu for editing
+         ShowContextMenu();
+      }
+   }
+
    return false;
 }
 
@@ -1622,18 +1609,22 @@ bool LabelTrack::CaptureKey(wxKeyEvent & event)
 {
    // Cache the keycode
    int keyCode = event.GetKeyCode();
+
    // Check for modifiers -- this does what wxKeyEvent::HasModifiers() should
    // do (it checks Control instead of CMD on Mac)
    bool hasMods = ((event.GetModifiers() & (wxMOD_CMD | wxMOD_ALT)) != 0);
+   if (hasMods) {
+      return false;
+   }
 
    if (mSelIndex >= 0) {
-      if (IsGoodLabelEditKey(keyCode) && !hasMods) {
+      if (IsGoodLabelEditKey(keyCode)) {
          return true;
       }
    }
    else
    {
-      if( IsGoodLabelFirstKey(keyCode) && !hasMods)
+      if (IsGoodLabelFirstKey(keyCode))
       {
          AudacityProject * pProj = GetActiveProject();
 
@@ -1646,14 +1637,16 @@ bool LabelTrack::CaptureKey(wxKeyEvent & event)
             double t0, t1;
             pProj->GetPlayRegion(&t0, &t1);
             if (pProj->mViewInfo.selectedRegion.t0() == t0 &&
-                pProj->mViewInfo.selectedRegion.t1() == t1)
+                pProj->mViewInfo.selectedRegion.t1() == t1) {
                return false;
+            }
          }
 
          // If there's a label there already don't capture
          if( GetLabelIndex(pProj->mViewInfo.selectedRegion.t0(),
-                           pProj->mViewInfo.selectedRegion.t1()) != wxNOT_FOUND )
+                           pProj->mViewInfo.selectedRegion.t1()) != wxNOT_FOUND ) {
             return false;
+         }
 
          return true;
       }
@@ -1844,8 +1837,16 @@ bool LabelTrack::OnKeyDown(SelectedRegion &newSel, wxKeyEvent & event)
          }
          break;
 
+      case '\x10':   // OSX
+      case WXK_MENU:
+      case WXK_WINDOWS_MENU:
+         ShowContextMenu();
+         break;
+
       default:
-         event.Skip();
+         if (!IsGoodLabelEditKey(keyCode)) {
+            event.Skip();
+         }
          break;
       }
    }
@@ -1887,7 +1888,9 @@ bool LabelTrack::OnKeyDown(SelectedRegion &newSel, wxKeyEvent & event)
          break;
 
       default:
-         event.Skip();
+         if (!IsGoodLabelFirstKey(keyCode)) {
+            event.Skip();
+         }
          break;
       }
    }
@@ -1993,6 +1996,96 @@ bool LabelTrack::OnChar(SelectedRegion &WXUNUSED(newSel), wxKeyEvent & event)
    mDrawCursor = true;
 
    return updated;
+}
+
+void LabelTrack::ShowContextMenu()
+{
+   wxWindow *parent = wxWindow::FindFocus();
+
+   wxMenu *menu = new wxMenu();
+   menu->Bind(wxEVT_MENU, &LabelTrack::OnContextMenu, this);
+
+   menu->Append(OnCutSelectedTextID, _("Cu&t"));
+   menu->Append(OnCopySelectedTextID, _("&Copy"));
+   menu->Append(OnPasteSelectedTextID, _("&Paste"));
+   menu->Append(OnDeleteSelectedLabelID, _("&Delete Label"));
+
+   menu->Enable(OnCutSelectedTextID, IsTextSelected());
+   menu->Enable(OnCopySelectedTextID, IsTextSelected());
+   menu->Enable(OnPasteSelectedTextID, IsTextClipSupported());
+   menu->Enable(OnDeleteSelectedLabelID, true);
+
+   const LabelStruct *ls = GetLabel(mSelIndex);
+
+   wxClientDC dc(parent);
+
+   if (msFont.Ok())
+   {
+      dc.SetFont(msFont);
+   }
+
+   int x;
+   if (mMouseXPos != -1)
+   {
+      x = mMouseXPos;
+   }
+   else
+   {
+      dc.GetTextExtent(ls->title.Left(mCurrentCursorPos), &x, NULL);
+      x += ls->xText;
+   }
+
+   parent->PopupMenu(menu, x, ls->y + (mIconHeight / 2) - 1);
+
+   delete menu;
+
+   // it's an invalid dragging event
+   SetWrongDragging(true);
+}
+
+void LabelTrack::OnContextMenu(wxCommandEvent & evt)
+{
+   AudacityProject *p = GetActiveProject();
+
+   switch (evt.GetId())
+   {
+   /// Cut selected text if cut menu item is selected
+   case OnCutSelectedTextID:
+      if (CutSelectedText())
+      {
+         p->PushState(_("Modified Label"),
+                      _("Label Edit"),
+                      PUSH_CONSOLIDATE);
+      }
+      break;
+
+   /// Copy selected text if copy menu item is selected
+   case OnCopySelectedTextID:
+      CopySelectedText();
+      break;
+
+   /// paste selected text if paste menu item is selected
+   case OnPasteSelectedTextID:
+      if (PasteSelectedText(p->GetSel0(), p->GetSel1()))
+      {
+         p->PushState(_("Modified Label"),
+                      _("Label Edit"),
+                      true /* consolidate */);
+      }
+      break;
+
+   /// delete selected label
+   case OnDeleteSelectedLabelID:
+      int ndx = GetLabelIndex(p->GetSel0(), p->GetSel1());
+      if (ndx != -1)
+      {
+         DeleteLabel(ndx);
+         p->PushState(_("Deleted Label"),
+                      _("Label Edit"),
+                      true /* consolidate */);
+      }
+      break;
+   }
 }
 
 void LabelTrack::RemoveSelectedText()
@@ -2714,7 +2807,10 @@ bool LabelTrack::IsGoodLabelFirstKey(int keyCode)
                   && keyCode != WXK_SPACE && keyCode != WXK_DELETE && keyCode != WXK_RETURN) ||
           (keyCode >= WXK_NUMPAD0 && keyCode <= WXK_DIVIDE) ||
           (keyCode >= WXK_NUMPAD_EQUAL && keyCode <= WXK_NUMPAD_DIVIDE) ||
-          (keyCode > WXK_COMMAND);
+#if defined(__WXMAC__)
+          (keyCode > WXK_RAW_CONTROL) ||
+#endif
+          (keyCode > WXK_WINDOWS_MENU);
 }
 
 /// This returns true for keys we capture for label editing.
@@ -2730,7 +2826,10 @@ bool LabelTrack::IsGoodLabelEditKey(int keyCode)
           (keyCode >= WXK_NUMPAD_SPACE && keyCode <= WXK_NUMPAD_ENTER) ||
           (keyCode >= WXK_NUMPAD_HOME && keyCode <= WXK_NUMPAD_END) ||
           (keyCode >= WXK_NUMPAD_DELETE && keyCode <= WXK_NUMPAD_DIVIDE) ||
-          keyCode > WXK_COMMAND;
+#if defined(__WXMAC__)
+          (keyCode > WXK_RAW_CONTROL) ||
+#endif
+          (keyCode > WXK_WINDOWS_MENU);
 }
 
 /// Sorts the labels in order of their starting times.

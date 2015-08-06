@@ -86,10 +86,6 @@
 // to activate it instead of the Spectrum log(f) mode.
 //#define EXPERIMENTAL_FIND_NOTES
 
-// AM, 22.Nov 2007
-// Skip Points support in the spectrum view mode.
-//#define EXPERIMENTAL_FFT_SKIP_POINTS
-
 // AM, 22.Nov 2007:
 // A Frequency Grid for the Spectrum Log(f) & Find Notes modes
 //#define EXPERIMENTAL_FFT_Y_GRID
@@ -154,6 +150,9 @@
 // to enable.
 #define EXPERIMENTAL_MODULE_PREFS
 
+// Define to allow realtime processing in Audacity effects that have been converted.
+#define EXPERIMENTAL_REALTIME_AUDACITY_EFFECTS
+
 // Define to include the effects rack (such as it is).
 //#define EXPERIMENTAL_EFFECTS_RACK
 
@@ -172,14 +171,14 @@
 // Paul Licameli (PRL) 16 Apr 2015
 // Support for scrubbing in the AudioIO engine, without calls to it
 #define EXPERIMENTAL_SCRUBBING_SUPPORT
-   
-// The following enable parts of the scrubbing user interface.
-// You must define EXPERIMENTAL_SCRUBBING_SUPPORT if you enable this:
-#define EXPERIMENTAL_SCRUBBING_BASIC
-// You must define EXPERIMENTAL_SCRUBBING_BASIC if you enable this:
-#define EXPERIMENTAL_SCRUBBING_SMOOTH_SCROLL
-// You must define EXPERIMENTAL_SCRUBBING_BASIC if you enable this:
-#define EXPERIMENTAL_SCRUBBING_SCROLL_WHEEL
+#ifdef EXPERIMENTAL_SCRUBBING_SUPPORT
+   // The following enable parts of the scrubbing user interface.
+   #define EXPERIMENTAL_SCRUBBING_BASIC
+   #ifdef EXPERIMENTAL_SCRUBBING_BASIC
+      #define EXPERIMENTAL_SCRUBBING_SMOOTH_SCROLL
+      #define EXPERIMENTAL_SCRUBBING_SCROLL_WHEEL
+   #endif
+#endif
 
 // Paul Licameli (PRL) 24 May 2015
 // Allow scrolling up to one half of a screenful beyond either end of the project,
