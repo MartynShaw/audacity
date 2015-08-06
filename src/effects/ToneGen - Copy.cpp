@@ -105,12 +105,6 @@ EffectToneGen::EffectToneGen(bool isChirp)
    {
       mInterpolations.Add(wxGetTranslation(kInterStrings[i]));
    }
-   // Chirp varies over time so must use selected duration.
-   // TODO: When previewing, calculate only the first 'preview length'.
-   if (isChirp)
-      SetLinearEffectFlag(false);
-   else
-      SetLinearEffectFlag(true);
 }
 
 EffectToneGen::~EffectToneGen()
@@ -212,7 +206,7 @@ sampleCount EffectToneGen::ProcessBlock(float **WXUNUSED(inBlock), float **outBl
          f = (2.0 * modf(mPositionInCycles / mSampleRate + 0.5, &throwaway)) - 1.0;
          break;
       case kSquareNoAlias:
-#define NEWSQUARENOALIAS
+//#define NEWSQUARENOALIAS 1
 #ifdef NEWSQUARENOALIAS
          // new method which is more complete at low frequencies, and less efficient at high frequencies.  We need a combination of the two.
          int N = floor((mSampleRate/2)/BlendedFrequency);
@@ -233,8 +227,6 @@ sampleCount EffectToneGen::ProcessBlock(float **WXUNUSED(inBlock), float **outBl
             else
                x = v/u;
          fInt += (w*x - 0.0)*norm;  // there may be a drift in the integration, this needs to be investigated
-                                    // actually I am seeing a bigger problem with the discontinuities as N changes
-                                    // which don't cause the same problem in the old method, due to the frequency window.
 
          double delta = mSampleRate/2.;
          double pit1 = M_PI * (mPositionInCycles + delta) / mSampleRate;
@@ -255,25 +247,14 @@ sampleCount EffectToneGen::ProcessBlock(float **WXUNUSED(inBlock), float **outBl
          f = fInt * 2 - 1.;
 #else
          b = (1.0 + cos((pre2PI * BlendedFrequency) / mSampleRate)) / pre4divPI;  //scaling factor for all except fundamental
-#ifdef __WXDEBUG__
-         // this (and below) causes the window function to be output to the log in a fashion that doesn't take too much editing to make into a curve for the EQ
-         double scale;
-         if(i==0)
-         {
-            scale = 20.*log10(1.0 + cos((pre2PI * BlendedFrequency) / mSampleRate));  // for EQ op
-            wxLogDebug(wxT("<point f=\"%f\" d=\"%f\"/>"),BlendedFrequency,20.*log10(2.)-scale);
-         }
-#endif
          //do fundamental (k=1) outside loop
          f = pre4divPI * sin(pre2PI * mPositionInCycles / mSampleRate);
          for (k = 3; (k < 200) && (k * BlendedFrequency < mSampleRate / 2.0); k += 2)
          {
             //Hanning Window in freq domain
             a = 1.0 + cos((pre2PI * k * BlendedFrequency) / mSampleRate);
-#ifdef __WXDEBUG__
             if(i==0)
-               wxLogDebug(wxT("<point f=\"%f\" d=\"%f\"/>"),k*BlendedFrequency,20.*log10(a)-scale);
-#endif
+               wxLogDebug(wxT("<point f=\"%f\" d=\"%f\"/>"),k*BlendedFrequency,20.*log10(a));
             //calc harmonic, apply window, scale to amplitude of fundamental
             f += a * sin(pre2PI * mPositionInCycles / mSampleRate * k) / (b * k);
          }
@@ -411,7 +392,7 @@ void EffectToneGen::PopulateOrExchange(ShuttleGui & S)
          }
          S.EndHorizontalLay();
 
-         S.AddPrompt(_("Amplitude (0-1):"));
+         S.AddPrompt(_("Amplitude (Hz):"));
          S.StartHorizontalLay(wxEXPAND);
          {
             S.StartHorizontalLay(wxLEFT, 50);
@@ -452,17 +433,20 @@ void EffectToneGen::PopulateOrExchange(ShuttleGui & S)
          t->SetValidator(vldAmplitude);
       }
 
+      bool isSelection;
+      double duration = GetDuration(&isSelection);
+
       S.AddPrompt(_("Duration:"));
       mToneDurationT = new
          NumericTextCtrl(NumericConverter::TIME,
-                         S.GetParent(),
-                         wxID_ANY,
-                         GetDurationFormat(),
-                         GetDuration(),
-                         mProjectRate,
-                         wxDefaultPosition,
-                         wxDefaultSize,
-                         true);
+                        S.GetParent(),
+                        wxID_ANY,
+                        isSelection ? _("hh:mm:ss + samples") : _("hh:mm:ss + milliseconds"),
+                        duration,
+                        mProjectRate,
+                        wxDefaultPosition,
+                        wxDefaultSize,
+                        true);
       mToneDurationT->SetName(_("Duration"));
       mToneDurationT->EnableMenu();
       S.AddWindow(mToneDurationT, wxALIGN_LEFT | wxALL);
