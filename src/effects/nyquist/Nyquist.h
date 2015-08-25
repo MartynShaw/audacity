@@ -39,6 +39,8 @@ enum NyqControlType
    NYQ_CTRL_REAL,
    NYQ_CTRL_STRING,
    NYQ_CTRL_CHOICE,
+   NYQ_CTRL_INT_TEXT,
+   NYQ_CTRL_FLOAT_TEXT
 };
 
 class NyqControl
@@ -205,10 +207,12 @@ private:
    WaveTrack         *mCurTrack[2];
    sampleCount       mCurStart[2];
    sampleCount       mCurLen;
+   sampleCount       mMaxLen;
    int               mTrackIndex;
    bool              mFirstInGroup;
    double            mOutputTime;
    int               mCount;
+   int               mNumSelectedChannels;
    double            mProgressIn;
    double            mProgressOut;
    double            mProgressTot;

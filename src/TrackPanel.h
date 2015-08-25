@@ -27,6 +27,7 @@
 #include "WaveTrackLocation.h"
 
 #include "Snap.h"
+#include "Track.h"
 
 class wxMenu;
 class wxRect;
@@ -140,7 +141,6 @@ class AUDACITY_DLL_API TrackPanel:public wxPanel {
    virtual void UpdatePrefs();
 
    virtual void OnSize(wxSizeEvent & event);
-   virtual void OnErase(wxEraseEvent & event);
    virtual void OnPaint(wxPaintEvent & event);
    virtual void OnMouseEvent(wxMouseEvent & event);
    virtual void OnCaptureLost(wxMouseCaptureLostEvent & event);
@@ -151,6 +151,7 @@ class AUDACITY_DLL_API TrackPanel:public wxPanel {
 
    virtual void OnSetFocus(wxFocusEvent & event);
    virtual void OnKillFocus(wxFocusEvent & event);
+   virtual void OnActivateOrDeactivateApp(wxActivateEvent & event);
 
    virtual void OnContextMenu(wxContextMenuEvent & event);
 
@@ -164,6 +165,8 @@ class AUDACITY_DLL_API TrackPanel:public wxPanel {
 
    virtual int GetLeftOffset() const { return GetLabelWidth() + 1;}
 
+   // Width and height, relative to upper left corner at (GetLeftOffset(), 0)
+   // Either argument may be NULL
    virtual void GetTracksUsableArea(int *width, int *height) const;
 
    virtual void SelectNone();
@@ -229,7 +232,11 @@ class AUDACITY_DLL_API TrackPanel:public wxPanel {
    virtual void UpdateTrackVRuler(Track *t);
    virtual void UpdateVRulerSize();
 
-   virtual void DrawQuickPlayIndicator(wxDC & dc, double pos);
+   virtual void DrawQuickPlayIndicator(int x, bool snapped = false);
+
+   // Returns the time corresponding to the pixel column one past the track area
+   // (ignoring any fisheye)
+   virtual double GetScreenEndTime() const;
 
  protected:
    virtual MixerBoard* GetMixerBoard();
@@ -237,7 +244,7 @@ class AUDACITY_DLL_API TrackPanel:public wxPanel {
     * initial items.
     *
     * Ensures that all pop-down menus start with Name, and the commands for moving
-    * the track around, via a single set of code.
+    * the track around, via a single set of c ode.
     * @param menu the menu to add the commands to.
     */
    virtual void BuildCommonDropMenuItems(wxMenu * menu);
@@ -250,13 +257,27 @@ class AUDACITY_DLL_API TrackPanel:public wxPanel {
    virtual bool HandleTrackLocationMouseEvent(WaveTrack * track, wxRect &rect, wxMouseEvent &event);
    virtual bool IsOverCutline(WaveTrack * track, wxRect &rect, wxMouseEvent &event);
    virtual void HandleTrackSpecificMouseEvent(wxMouseEvent & event);
-   virtual void DrawIndicator();
+
+   virtual void TimerUpdateIndicator();
+   // Second member of pair indicates whether the indicator is out of date:
+   virtual std::pair<wxRect, bool> GetIndicatorRectangle();
+   virtual void UndrawIndicator(wxDC & dc);
    /// draws the green line on the tracks to show playback position
-   /// @param repairOld if true the playback position is not updated/erased, and simply redrawn
-   /// @param indicator if nonnegative, overrides the indicator value obtainable from AudioIO
-   virtual void DoDrawIndicator(wxDC & dc, bool repairOld = false, double indicator = -1);
-   virtual void DrawCursor();
+   virtual void DoDrawIndicator(wxDC & dc);
+
+   // Second member of pair indicates whether the cursor is out of date:
+   virtual std::pair<wxRect, bool> GetCursorRectangle();
+   virtual void UndrawCursor(wxDC & dc);
    virtual void DoDrawCursor(wxDC & dc);
+
+#ifdef EXPERIMENTAL_SCRUBBING_BASIC
+   bool ShouldDrawScrubSpeed();
+   virtual void TimerUpdateScrubbing();
+   // Second member of pair indicates whether the cursor is out of date:
+   virtual std::pair<wxRect, bool> GetScrubSpeedRectangle();
+   virtual void UndrawScrubSpeed(wxDC & dc);
+   virtual void DoDrawScrubSpeed(wxDC & dc);
+#endif
 
    virtual void ScrollDuringDrag();
 
@@ -390,7 +411,8 @@ protected:
    virtual void HandleZoomDrag(wxMouseEvent & event);
    virtual void HandleZoomButtonUp(wxMouseEvent & event);
 
-   virtual bool IsDragZooming();
+   static bool IsDragZooming(int zoomStart, int zoomEnd);
+   virtual bool IsDragZooming() { return IsDragZooming(mZoomStart, mZoomEnd); }
    virtual void DragZoom(wxMouseEvent &event, int x);
    virtual void DoZoomInOut(wxMouseEvent &event, int x);
 
@@ -399,11 +421,16 @@ protected:
    virtual void HandleVZoomDrag(wxMouseEvent & event);
    virtual void HandleVZoomButtonUp(wxMouseEvent & event);
    virtual void HandleWaveTrackVZoom(WaveTrack *track, bool shiftDown, bool rightUp);
+   static void HandleWaveTrackVZoom
+      (TrackList *tracks, const wxRect &rect,
+       int zoomStart, int zoomEnd,
+       WaveTrack *track, bool shiftDown, bool rightUp,
+       bool fixedMousePoint);
 
    // Handle sample editing using the 'draw' tool.
    virtual bool IsSampleEditingPossible( wxMouseEvent & event, Track * t );
    virtual void HandleSampleEditing(wxMouseEvent & event);
-   float FindSampleEditingLevel(wxMouseEvent &event, double t0);
+   float FindSampleEditingLevel(wxMouseEvent &event, double dBRange, double t0);
    virtual void HandleSampleEditingClick( wxMouseEvent & event );
    virtual void HandleSampleEditingDrag( wxMouseEvent & event );
    virtual void HandleSampleEditingButtonUp( wxMouseEvent & event );
@@ -463,7 +490,7 @@ protected:
    virtual void MoveTrack(Track* target, int eventId);
    virtual void OnChangeOctave (wxCommandEvent &event);
    virtual void OnChannelChange(wxCommandEvent &event);
-   virtual void OnViewSettings(wxCommandEvent &event);
+   virtual void OnSpectrogramSettings(wxCommandEvent &event);
    virtual void OnSetDisplay   (wxCommandEvent &event);
    virtual void OnSetTimeTrackRange (wxCommandEvent &event);
    virtual void OnTimeTrackLin(wxCommandEvent &event);
@@ -530,15 +557,16 @@ protected:
                            const wxRect & clip);
    virtual void DrawOutside(Track *t, wxDC *dc, const wxRect & rec,
                     const wxRect &trackRect);
-#ifdef EXPERIMENTAL_SCRUBBING_BASIC
-   void DrawScrubSpeed(wxDC &dc);
-#endif
    virtual void DrawZooming(wxDC* dc, const wxRect & clip);
 
    virtual void HighlightFocusedTrack (wxDC* dc, const wxRect &rect);
    virtual void DrawShadow            (Track *t, wxDC* dc, const wxRect & rect);
    virtual void DrawBordersAroundTrack(Track *t, wxDC* dc, const wxRect & rect, const int labelw, const int vrul);
    virtual void DrawOutsideOfTrack    (Track *t, wxDC* dc, const wxRect & rect);
+
+   // Erase and redraw things like the cursor, cheaply and directly to the
+   // client area, without full refresh.
+   virtual void DrawOverlays(bool repaint);
 
    virtual int IdOfRate( int rate );
    virtual int IdOfFormat( int format );
@@ -581,15 +609,19 @@ protected:
    // This stores the parts of the screen that get overwritten by the indicator
    // and cursor
    int mLastIndicatorX;
+   int mNewIndicatorX;
    int mLastCursorX;
+   double mCursorTime;
+   int mNewCursorX;
 
    // Quick-Play indicator postion
-   double mOldQPIndicatorPos;
+   int mOldQPIndicatorPos;
 
    int mTimeCount;
 
    wxMemoryDC mBackingDC;
    wxBitmap *mBacking;
+   bool mResizeBacking;
    bool mRefreshBacking;
    int mPrevWidth;
    int mPrevHeight;
@@ -639,6 +671,7 @@ protected:
    Envelope *mCapturedEnvelope;
    WaveClip *mCapturedClip;
    TrackClipArray mCapturedClipArray;
+   TrackArray mTrackExclusions;
    bool mCapturedClipIsSelection;
    WaveTrackLocation mCapturedTrackLocation;
    wxRect mCapturedTrackLocationRect;
@@ -663,8 +696,6 @@ protected:
    bool mDidSlideVertically;
 
    bool mRedrawAfterStop;
-
-   bool mIndicatorShowing;
 
    wxMouseEvent mLastMouseEvent;
 
@@ -787,6 +818,9 @@ protected:
    int mScrubSpeedDisplayCountdown;
    bool mScrubHasFocus;
    bool mScrubSeekPress;
+
+   wxRect mLastScrubRect, mNextScrubRect;
+   wxString mScrubSpeedText;
 #endif
 
 #ifdef EXPERIMENTAL_SCRUBBING_SMOOTH_SCROLL

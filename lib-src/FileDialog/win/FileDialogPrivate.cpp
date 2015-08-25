@@ -170,6 +170,11 @@ UINT_PTR FileDialog::MSWParentHook(HWND hDlg, UINT iMsg, WPARAM wParam, LPARAM l
       MSWOnSize(mParentDlg, pOfn);
    }
 
+   if (iMsg == WM_GETMINMAXINFO)
+   {
+      MSWOnGetMinMaxInfo(mParentDlg, pOfn, reinterpret_cast<LPMINMAXINFO>(lParam));
+   }
+
    return ret;
 }
 
@@ -196,6 +201,23 @@ void FileDialog::MSWOnSize(HWND hDlg, LPOPENFILENAME pOfn)
    }
 
    SetHWND(NULL);
+}
+
+// Provide the minimum size of the dialog
+//
+// We've captured the full dialog size in MSWOnInitDone() below.  This will be returned
+// as the minimum size.
+//
+// When the user tries to resize the dialog, for some unknown reason the common dialog control
+// doesn't let the user resize it smaller than it was the last time the dialog was used.  This
+// may be a problem in this code and/or may only be a concern under Windows 10.  Either way, we
+// override the minimum size supplied by the common dialog control with our own size here.
+void FileDialog::MSWOnGetMinMaxInfo(HWND hwnd, LPOPENFILENAME pOfn, LPMINMAXINFO pMmi)
+{
+   if (mMinSize.x > 0 && mMinSize.y > 0)
+   {
+      pMmi->ptMinTrackSize = mMinSize;
+   }
 }
 
 UINT_PTR APIENTRY FileDialog::DialogHook(HWND hDlg, UINT iMsg, WPARAM wParam, LPARAM lParam)
@@ -325,6 +347,11 @@ void FileDialog::MSWOnInitDone(HWND hDlg, LPOPENFILENAME pOfn)
 {
    // set HWND so that our DoMoveWindow() works correctly
    SetHWND(mChildDlg);
+
+   // capture the full initial size of the dialog to use as the minimum size
+   RECT r;
+   GetWindowRect(mParentDlg, &r);
+   mMinSize = {r.right - r.left, r.bottom - r.top};
 
    if (m_centreDir)
    {
@@ -652,6 +679,7 @@ FileDialog::FileDialog(wxWindow *parent,
 void FileDialog::Init()
 {
    mRoot = NULL;
+   mMinSize = {0, 0};
 
    // NB: all style checks are done by wxFileDialogBase::Create
 
