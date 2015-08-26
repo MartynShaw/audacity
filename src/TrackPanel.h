@@ -161,7 +161,7 @@ class AUDACITY_DLL_API TrackPanel:public wxPanel {
 
    virtual double GetMostRecentXPos();
 
-   virtual void OnTimer();
+   virtual void OnTimer(wxTimerEvent& event);
 
    virtual int GetLeftOffset() const { return GetLabelWidth() + 1;}
 
@@ -258,7 +258,7 @@ class AUDACITY_DLL_API TrackPanel:public wxPanel {
    virtual bool IsOverCutline(WaveTrack * track, wxRect &rect, wxMouseEvent &event);
    virtual void HandleTrackSpecificMouseEvent(wxMouseEvent & event);
 
-   virtual void TimerUpdateIndicator();
+   virtual void TimerUpdateIndicator(double playPos);
    // Second member of pair indicates whether the indicator is out of date:
    virtual std::pair<wxRect, bool> GetIndicatorRectangle();
    virtual void UndrawIndicator(wxDC & dc);
@@ -272,7 +272,7 @@ class AUDACITY_DLL_API TrackPanel:public wxPanel {
 
 #ifdef EXPERIMENTAL_SCRUBBING_BASIC
    bool ShouldDrawScrubSpeed();
-   virtual void TimerUpdateScrubbing();
+   virtual void TimerUpdateScrubbing(double playPos);
    // Second member of pair indicates whether the cursor is out of date:
    virtual std::pair<wxRect, bool> GetScrubSpeedRectangle();
    virtual void UndrawScrubSpeed(wxDC & dc);
@@ -601,10 +601,19 @@ protected:
 
    class AUDACITY_DLL_API AudacityTimer:public wxTimer {
    public:
-     virtual void Notify() { parent->OnTimer(); }
+     virtual void Notify() {
+       // (From Debian)
+       //
+       // Don't call parent->OnTimer(..) directly here, but instead post
+       // an event. This ensures that this is a pure wxWidgets event
+       // (no GDK event behind it) and that it therefore isn't processed
+       // within the YieldFor(..) of the clipboard operations (workaround
+       // for Debian bug #765341).
+       wxTimerEvent *event = new wxTimerEvent(*this);
+       parent->GetEventHandler()->QueueEvent(event);
+     }
      TrackPanel *parent;
    } mTimer;
-
 
    // This stores the parts of the screen that get overwritten by the indicator
    // and cursor

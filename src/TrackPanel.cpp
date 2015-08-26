@@ -411,6 +411,8 @@ BEGIN_EVENT_TABLE(TrackPanel, wxWindow)
     EVT_MENU(OnZoomInVerticalID, TrackPanel::OnZoomInVertical)
     EVT_MENU(OnZoomOutVerticalID, TrackPanel::OnZoomOutVertical)
     EVT_MENU(OnZoomFitVerticalID, TrackPanel::OnZoomFitVertical)
+
+    EVT_TIMER(wxID_ANY, TrackPanel::OnTimer)
 END_EVENT_TABLE()
 
 /// Makes a cursor from an XPM, uses CursorId as a fallback.
@@ -1045,7 +1047,7 @@ AudacityProject * TrackPanel::GetProject() const
 }
 
 /// AS: This gets called on our wx timer events.
-void TrackPanel::OnTimer()
+void TrackPanel::OnTimer(wxTimerEvent& event)
 {
    mTimeCount++;
    // AS: If the user is dragging the mouse and there is a track that
@@ -1054,17 +1056,7 @@ void TrackPanel::OnTimer()
       ScrollDuringDrag();
    }
 
-   wxCommandEvent dummyEvent;
-   AudacityProject *p = GetProject();
-
-   {
-      wxCommandEvent e(EVT_TRACK_PANEL_TIMER);
-      p->GetEventHandler()->ProcessEvent(e);
-   }
-
-#ifdef EXPERIMENTAL_SCRUBBING_BASIC
-   TimerUpdateScrubbing();
-#endif
+   AudacityProject *const p = GetProject();
 
    // Check whether we were playing or recording, but the stream has stopped.
    if (p->GetAudioIOToken()>0 && !IsAudioActive())
@@ -1089,7 +1081,19 @@ void TrackPanel::OnTimer()
       DisplaySelection();
    }
 
-   TimerUpdateIndicator();
+   // Notify listeners for timer ticks
+   {
+      wxCommandEvent e(EVT_TRACK_PANEL_TIMER);
+      p->GetEventHandler()->ProcessEvent(e);
+   }
+
+   const double playPos = gAudioIO->GetStreamTime();
+
+   // The sequence of the next two is important.
+#ifdef EXPERIMENTAL_SCRUBBING_BASIC
+   TimerUpdateScrubbing(playPos);
+#endif
+   TimerUpdateIndicator(playPos);
 
    DrawOverlays(false);
 
@@ -1202,31 +1206,18 @@ double TrackPanel::GetScreenEndTime() const
    return mViewInfo->PositionToTime(width, true);
 }
 
-void TrackPanel::TimerUpdateIndicator()
+void TrackPanel::TimerUpdateIndicator(double playPos)
 {
-   double pos = 0.0;
-
    if (!IsAudioActive())
       mNewIndicatorX = -1;
    else {
       // Calculate the horizontal position of the indicator
-      pos = gAudioIO->GetStreamTime();
 
-#ifdef EXPERIMENTAL_SCRUBBING_SMOOTH_SCROLL
-      if (mSmoothScrollingScrub) {
-         // Pan the view, so that we center the play indicator.
-         const double duration = GetScreenEndTime() - mViewInfo->h;
-         mViewInfo->h = pos - duration / 2.0;
-         if (!mScrollBeyondZero)
-            // Can't scroll too far left
-            mViewInfo->h = std::max(0.0, mViewInfo->h);
-         Refresh(false);
-      }
-#endif
       AudacityProject *p = GetProject();
       const bool
-         onScreen = between_incexc(mViewInfo->h,
-            pos,
+         onScreen = playPos >= 0.0 &&
+         between_incexc(mViewInfo->h,
+            playPos,
             GetScreenEndTime());
 
       // This displays the audio time, too...
@@ -1237,11 +1228,11 @@ void TrackPanel::TimerUpdateIndicator()
       if( mViewInfo->bUpdateTrackIndicator &&
          p->mLastPlayMode != loopedPlay &&
          p->mLastPlayMode != oneSecondPlay &&
-         pos >= 0 &&
+         playPos >= 0 &&
          !onScreen &&
          !gAudioIO->IsPaused() )
       {
-         mListener->TP_ScrollWindow( pos );
+         mListener->TP_ScrollWindow( playPos );
       }
 
       // Always update scrollbars even if not scrolling the window. This is
@@ -1249,7 +1240,7 @@ void TrackPanel::TimerUpdateIndicator()
       // length of the project and therefore the appearance of the scrollbar.
       MakeParentRedrawScrollbars();
 
-      mNewIndicatorX = mViewInfo->TimeToPosition(pos, GetLeftOffset());
+      mNewIndicatorX = mViewInfo->TimeToPosition(playPos, GetLeftOffset());
    }
 }
 
@@ -7434,7 +7425,7 @@ bool TrackPanel::ShouldDrawScrubSpeed()
    );
 }
 
-void TrackPanel::TimerUpdateScrubbing()
+void TrackPanel::TimerUpdateScrubbing(double playPos)
 {
    if (!IsScrubbing()) {
       mNextScrubRect = wxRect();
@@ -7472,60 +7463,76 @@ void TrackPanel::TimerUpdateScrubbing()
 
    if (!ShouldDrawScrubSpeed()) {
       mNextScrubRect = wxRect();
-      return;
+   }
+   else {
+      int panelWidth, panelHeight;
+      GetSize(&panelWidth, &panelHeight);
+
+      // Where's the mouse?
+      int xx, yy;
+      ::wxGetMousePosition(&xx, &yy);
+      ScreenToClient(&xx, &yy);
+
+      const bool seeking = PollIsSeeking();
+
+      // Find the text
+      const double speed =
+#ifdef EXPERIMENTAL_SCRUBBING_SMOOTH_SCROLL
+         mSmoothScrollingScrub
+         ? seeking
+            ? FindSeekSpeed(mViewInfo->PositionToTime(xx, GetLeftOffset()))
+            : FindScrubSpeed(mViewInfo->PositionToTime(xx, GetLeftOffset()))
+         :
+#endif
+            mMaxScrubSpeed;
+
+      const wxChar *format =
+#ifdef EXPERIMENTAL_SCRUBBING_SMOOTH_SCROLL
+         mSmoothScrollingScrub
+         ? seeking
+            ? wxT("%+.2fX")
+            : wxT("%+.2f")
+         :
+#endif
+            wxT("%.2f");
+
+      mScrubSpeedText = wxString::Format(format, speed);
+
+      // Find the origin for drawing text
+      wxCoord width, height;
+      {
+         wxClientDC dc(this);
+         static const wxFont labelFont(24, wxSWISS, wxNORMAL, wxNORMAL);
+         dc.SetFont(labelFont);
+         dc.GetTextExtent(mScrubSpeedText, &width, &height);
+      }
+      xx = std::max(0, std::min(panelWidth - width, xx - width / 2));
+
+      // Put the text above the cursor, if it fits.
+      enum { offset = 20 };
+      yy -= height + offset;
+      if (yy < 0)
+         yy += height + 2 * offset;
+      yy = std::max(0, std::min(panelHeight - height, yy));
+
+      mNextScrubRect = wxRect(xx, yy, width, height);
    }
 
-   int panelWidth, panelHeight;
-   GetSize(&panelWidth, &panelHeight);
-
-   // Where's the mouse?
-   int xx, yy;
-   ::wxGetMousePosition(&xx, &yy);
-   ScreenToClient(&xx, &yy);
-
-   const bool seeking = PollIsSeeking();
-
-   // Find the text
-   const double speed =
 #ifdef EXPERIMENTAL_SCRUBBING_SMOOTH_SCROLL
-      mSmoothScrollingScrub
-      ? seeking
-         ? FindSeekSpeed(mViewInfo->PositionToTime(xx, GetLeftOffset()))
-         : FindScrubSpeed(mViewInfo->PositionToTime(xx, GetLeftOffset()))
-      :
-#endif
-         mMaxScrubSpeed;
-
-   const wxChar *format =
-#ifdef EXPERIMENTAL_SCRUBBING_SMOOTH_SCROLL
-      mSmoothScrollingScrub
-      ? seeking
-         ? wxT("%+.2fX")
-         : wxT("%+.2f")
-      :
-#endif
-         wxT("%.2f");
-
-   mScrubSpeedText = wxString::Format(format, speed);
-
-   // Find the origin for drawing text
-   wxCoord width, height;
-   {
-      wxClientDC dc(this);
-      static const wxFont labelFont(24, wxSWISS, wxNORMAL, wxNORMAL);
-      dc.SetFont(labelFont);
-      dc.GetTextExtent(mScrubSpeedText, &width, &height);
+   if (mSmoothScrollingScrub) {
+      // Pan the view, so that we center the play indicator.
+      const int posX = mViewInfo->TimeToPosition(playPos);
+      int width;
+      GetTracksUsableArea(&width, NULL);
+      const int deltaX = posX - width / 2;
+      mViewInfo->h =
+         mViewInfo->OffsetTimeByPixels(mViewInfo->h, deltaX, true);
+      if (!mScrollBeyondZero)
+         // Can't scroll too far left
+         mViewInfo->h = std::max(0.0, mViewInfo->h);
+      Refresh(false);
    }
-   xx = std::max(0, std::min(panelWidth - width, xx - width / 2));
-
-   // Put the text above the cursor, if it fits.
-   enum { offset = 20 };
-   yy -= height + offset;
-   if (yy < 0)
-      yy += height + 2 * offset;
-   yy = std::max(0, std::min(panelHeight - height, yy));
-
-   mNextScrubRect = wxRect(xx, yy, width, height);
+#endif
 }
 
 std::pair<wxRect, bool> TrackPanel::GetScrubSpeedRectangle()
@@ -9373,6 +9380,7 @@ void TrackPanel::OnSetDisplay(wxCommandEvent & event)
       (id == WaveTrack::Waveform &&
        wt->GetWaveformSettings().isLinear() != linear);
    if (wrongType || wrongScale) {
+      wt->SetLastScaleType();
       wt->SetDisplay(WaveTrack::WaveTrackDisplay(id));
       if (wrongScale)
          wt->GetIndependentWaveformSettings().scaleType = linear
@@ -9381,6 +9389,7 @@ void TrackPanel::OnSetDisplay(wxCommandEvent & event)
 
       WaveTrack *l = static_cast<WaveTrack *>(wt->GetLink());
       if (l) {
+         l->SetLastScaleType();
          l->SetDisplay(WaveTrack::WaveTrackDisplay(id));
          if (wrongScale)
             l->GetIndependentWaveformSettings().scaleType = linear
