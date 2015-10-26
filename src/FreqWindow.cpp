@@ -80,6 +80,8 @@ and in the spectrogram spectral selection.
 
 #include "WaveTrack.h"
 
+#include "Experimental.h"
+
 DEFINE_EVENT_TYPE(EVT_FREQWINDOW_RECALC);
 
 enum {
@@ -530,16 +532,19 @@ bool FreqWindow::Show(bool show)
 
    bool shown = IsShown();
 
-   bool res = wxDialog::Show(show);
-
    if (show && !shown)
    {
       gPrefs->Read(ENV_DB_KEY, &dBRange, ENV_DB_RANGE);
       if(dBRange < 90.)
          dBRange = 90.;
       GetAudio();
-      SendRecalcEvent();
+      // Don't send an event.  We need the recalc right away.
+      // so that mAnalyst is valid when we paint.
+      //SendRecalcEvent();
+      Recalc();
    }
+
+   bool res = wxDialog::Show(show);
 
    return res;
 }
@@ -857,7 +862,8 @@ void FreqWindow::PlotPaint(wxPaintEvent & event)
    wxPaintDC dc( (wxWindow *) event.GetEventObject() );
 
    dc.DrawBitmap( *mBitmap, 0, 0, true );
-   if (!mData)
+   // Fix for Bug 1226 "Plot Spectrum freezes... if insufficient samples selected"
+   if (!mData || mDataLen < mWindowSize)
       return;
 
    dc.SetFont(mFreqFont);
@@ -991,7 +997,11 @@ void FreqWindow::Recalc()
    int windowFunc = mFuncChoice->GetSelection();
 
    wxWindow *hadFocus = FindFocus();
-   wxWindowDisabler *blocker = new wxWindowDisabler(mProgress);
+   // In wxMac, the skipped window MUST be a top level window.  I'd originally made it
+   // just the mProgress window with the idea of preventing user interaction with the
+   // controls while the plot was being recalculated.  This doesn't appear to be necessary
+   // so just use the the top level window instead.
+   wxWindowDisabler *blocker = new wxWindowDisabler(this);
    wxYieldIfNeeded();
 
    mAnalyst->Calculate(alg, windowFunc, mWindowSize, mRate,

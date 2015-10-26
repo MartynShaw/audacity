@@ -626,7 +626,12 @@ void AColor::PreComputeGradient() {
                         temp = r;
                         r = g;
                         g = b;
+<<<<<<< HEAD
                         b= temp;
+=======
+                        b = temp;
+                        break;
+>>>>>>> upstream/master
                      }
                      else
                      {

@@ -435,11 +435,16 @@ class AUDACITY_DLL_API WaveTrack : public Track {
    int GetLastScaleType() { return mLastScaleType; }
    void SetLastScaleType();
 
+   int GetLastdBRange() { return mLastdBRange; }
+   void SetLastdBRange();
+
    WaveTrackDisplay GetDisplay() const { return mDisplay; }
    void SetDisplay(WaveTrackDisplay display) { mDisplay = display; }
 
-   void GetDisplayBounds(float *min, float *max);
+   void GetDisplayBounds(float *min, float *max) const;
    void SetDisplayBounds(float min, float max);
+   void GetSpectrumBounds(float *min, float *max) const;
+   void SetSpectrumBounds(float min, float max);
 
 
  protected:
@@ -461,8 +466,12 @@ class AUDACITY_DLL_API WaveTrack : public Track {
    //
    float         mDisplayMin;
    float         mDisplayMax;
+   float         mSpectrumMin;
+   float         mSpectrumMax;
+
    WaveTrackDisplay mDisplay;
    int           mLastScaleType; // last scale type choice
+   int           mLastdBRange;
    int           mDisplayNumLocations;
    int           mDisplayNumLocationsAllocated;
    Location*       mDisplayLocations;

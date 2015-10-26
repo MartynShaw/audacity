@@ -120,6 +120,7 @@ scroll information.  It also has some status flags.
 #include "effects/Effect.h"
 #include "prefs/PrefsDialog.h"
 #include "widgets/LinkingHtmlWindow.h"
+#include "widgets/ASlider.h"
 #include "widgets/ErrorDialog.h"
 #include "widgets/Ruler.h"
 #include "widgets/Warning.h"
@@ -554,21 +555,43 @@ void GetDefaultWindowRect(wxRect *defRect)
 {
    *defRect = wxGetClientDisplayRect();
 
-   defRect->width = 940;
-   defRect->height = 674;
+   int width = 940;
+   int height = 674;
 
    //These conditional values assist in improving placement and size
    //of new windows on different platforms.
 #ifdef __WXGTK__
-   defRect->height += 20;
+   height += 20;
 #endif
 
 #ifdef __WXMSW__
-   defRect->height += 40;
+   height += 40;
 #endif
+
 #ifdef __WXMAC__
-   defRect->height += 55;
+   height += 55;
 #endif
+
+   // Use screen size where it is smaller than the values we would like.
+   // Otherwise use the values we would like, and centred.
+   if (width < defRect->width)
+   {
+      defRect->x = (defRect->width - width)/2;
+      defRect->width = width;
+   }
+
+   if (height < defRect->height)
+   {
+      defRect->y = (defRect->height - height)/2;
+      // Bug 1119 workaround
+      // Small adjustment for very small Mac screens.
+      // If there is only a tiny space at the top
+      // then instead of vertical centre, align to bottom.
+      const int pixelsFormenu = 60;
+      if( defRect->y < pixelsFormenu )
+         defRect->y *=2;
+      defRect->height = height;
+   }
 }
 
 bool IsWindowAccessible(wxRect *requestedRect)
@@ -627,16 +650,31 @@ void GetNextWindowPlacement(wxRect *nextRect, bool *pMaximized, bool *pIconized)
       windowRect = defaultRect;
    }
 
+   wxRect screenRect = wxGetClientDisplayRect();
+
 #if defined(__WXMAC__)
    // On OSX, the top of the window should never be less than the menu height,
    // so something is amiss if it is
-   if (normalRect.y < defaultRect.y) {
+   if (normalRect.y < screenRect.y) {
       normalRect = defaultRect;
    }
-   if (windowRect.y < defaultRect.y) {
+   if (windowRect.y < screenRect.y) {
       windowRect = defaultRect;
    }
 #endif
+
+
+   // Make sure initial sizes fit within the display bounds
+   // We used to trim the sizes which could result in ridiculously small windows.
+   // contributing to bug 1243.
+   // Now instead if the window doesn't fit the screen, we use the default 
+   // window instead, which we know does.
+   if (!screenRect.Contains( normalRect )) {
+      normalRect = defaultRect;
+   }
+   if (!screenRect.Contains( windowRect )) {
+      windowRect = defaultRect;
+   }
 
    if (gAudacityProjects.IsEmpty()) {
       if (*pMaximized || *pIconized) {
@@ -674,7 +712,6 @@ void GetNextWindowPlacement(wxRect *nextRect, bool *pMaximized, bool *pIconized)
       nextRect->y += inc;
    }
 
-   wxRect screenRect = wxGetClientDisplayRect();
 
    //Have we hit the right side of the screen?
    wxPoint bottomRight = nextRect->GetBottomRight();
@@ -780,7 +817,6 @@ AudacityProject::AudacityProject(wxWindow * parent, wxWindowID id,
      mIsDeleting(false),
      mTracksFitVerticallyZoomed(false),  //lda
      mShowId3Dialog(true),               //lda
-     mScrollBeyondZero(false),
      mLastFocusedWindow(NULL),
      mKeyboardCaptureHandler(NULL),
      mImportXMLTagHandler(NULL),
@@ -795,7 +831,8 @@ AudacityProject::AudacityProject(wxWindow * parent, wxWindowID id,
      mMenuClose(false),
      mShownOnce(false),
      mbInitializingScrollbar(false),
-     mViewInfo(0.0, 1.0, ZoomInfo::GetDefaultZoom())
+     mViewInfo(0.0, 1.0, ZoomInfo::GetDefaultZoom()),
+     mIsBeingDeleted(false)
 {
    // Note that the first field of the status bar is a dummy, and it's width is set
    // to zero latter in the code. This field is needed for wxWidgets 2.8.12 because
@@ -1030,11 +1067,18 @@ AudacityProject::AudacityProject(wxWindow * parent, wxWindowID id,
                      wxCommandEventHandler(AudacityProject::OnCapture),
                      NULL,
                      this);
+
+   //Initialize the last selection adjustment time.
+   mLastSelectionAdjustment = ::wxGetLocalTimeMillis();
+
 }
 
 AudacityProject::~AudacityProject()
 {
-   wxGetApp().GetRecentFiles()->RemoveMenu(mRecentFilesMenu);
+   if (wxGetApp().GetRecentFiles())
+   {
+      wxGetApp().GetRecentFiles()->RemoveMenu(mRecentFilesMenu);
+   }
 
    wxTheApp->Disconnect(EVT_AUDIOIO_CAPTURE,
                      wxCommandEventHandler(AudacityProject::OnCapture),
@@ -1052,9 +1096,6 @@ AudioIOStartStreamOptions AudacityProject::GetDefaultPlayOptions()
 
 void AudacityProject::UpdatePrefsVariables()
 {
-#ifdef EXPERIMENTAL_SCROLLING_LIMITS
-   gPrefs->Read(wxT("/GUI/ScrollBeyondZero"), &mScrollBeyondZero, false);
-#endif
    gPrefs->Read(wxT("/AudioFiles/ShowId3Dialog"), &mShowId3Dialog, true);
    gPrefs->Read(wxT("/AudioFiles/NormalizeOnLoad"),&mNormalizeOnLoad, false);
    gPrefs->Read(wxT("/GUI/AutoScroll"), &mViewInfo.bUpdateTrackIndicator, true);
@@ -1068,6 +1109,9 @@ void AudacityProject::UpdatePrefsVariables()
 
    gPrefs->Read(wxT("/SamplingRate/DefaultProjectSampleRate"), &mRate, AudioIO::GetOptimalSupportedSampleRate());
    mDefaultFormat = (sampleFormat) gPrefs->Read(wxT("/SamplingRate/DefaultProjectSampleFormat"), floatSample);
+
+   gPrefs->Read(wxT("/AudioIO/SeekShortPeriod"), &mSeekShort, 1.0);
+   gPrefs->Read(wxT("/AudioIO/SeekLongPeriod"), &mSeekLong, 15.0);
 }
 
 void AudacityProject::UpdatePrefs()
@@ -1474,7 +1518,7 @@ void AudacityProject::OnScrollRightButton(wxScrollEvent & event)
 
 double AudacityProject::ScrollingLowerBoundTime() const
 {
-   if (!mScrollBeyondZero)
+   if (!mViewInfo.bScrollBeyondZero)
       return 0;
    const double screen = mTrackPanel->GetScreenEndTime() - mViewInfo.h;
    return std::min(mTracks->GetStartTime(), -screen / 2.0);
@@ -1495,7 +1539,9 @@ wxInt64 AudacityProject::PixelWidthBeforeTime(double scrollto) const
 void AudacityProject::SetHorizontalThumb(double scrollto)
 {
    wxInt64 max = mHsbar->GetRange() - mHsbar->GetThumbSize();
-   int pos = std::min(max, std::max(wxInt64(0), PixelWidthBeforeTime(scrollto)));
+   int pos = std::min(max,
+                std::max(wxInt64(0),
+                   wxInt64(PixelWidthBeforeTime(scrollto) * mViewInfo.sbarScale)));
    mHsbar->SetThumbPosition(pos);
 }
 
@@ -1583,7 +1629,7 @@ void AudacityProject::FixScrollbars()
    // may be scrolled to the midline.
    // May add even more to the end, so that you can always scroll the starting time to zero.
    const double lowerBound = ScrollingLowerBoundTime();
-   const double additional = mScrollBeyondZero
+   const double additional = mViewInfo.bScrollBeyondZero
       ? -lowerBound + std::max(halfScreen, screen - LastTime)
       : screen / 4.0;
 
@@ -1921,7 +1967,7 @@ void AudacityProject::OnScroll(wxScrollEvent & WXUNUSED(event))
    }
 
 
-   if (mScrollBeyondZero) {
+   if (mViewInfo.bScrollBeyondZero) {
       enum { SCROLL_PIXEL_TOLERANCE = 10 };
       if (std::abs(mViewInfo.TimeToPosition(0.0, 0
                                    )) < SCROLL_PIXEL_TOLERANCE) {
@@ -2066,6 +2112,17 @@ void AudacityProject::OnMouseEvent(wxMouseEvent & event)
 //     and/or attempts to delete objects twice.
 void AudacityProject::OnCloseWindow(wxCloseEvent & event)
 {
+   // We are called for the wxEVT_CLOSE_WINDOW, wxEVT_END_SESSION, and
+   // wxEVT_QUERY_END_SESSION, so we have to protect against multiple
+   // entries.  This is a hack until the whole application termination
+   // process can be reviewed and reworked.  (See bug #964 for ways
+   // to exercise the bug that instigated this hack.)
+   if (mIsBeingDeleted)
+   {
+      event.Skip();
+      return;
+   }
+
    if (event.CanVeto() && (::wxIsBusy() || mbBusyImporting))
    {
       event.Veto();
@@ -2255,10 +2312,10 @@ void AudacityProject::OnCloseWindow(wxCloseEvent & event)
    if (gActiveProject == this) {
       // Find a new active project
       if (gAudacityProjects.Count() > 0) {
-         gActiveProject = gAudacityProjects[0];
+         SetActiveProject(gAudacityProjects[0]);
       }
       else {
-         gActiveProject = NULL;
+         SetActiveProject(NULL);
       }
    }
 
@@ -2282,6 +2339,8 @@ void AudacityProject::OnCloseWindow(wxCloseEvent & event)
    }
 
    Destroy();
+
+   mIsBeingDeleted = true;
 }
 
 void AudacityProject::OnOpenAudioFile(wxCommandEvent & event)
@@ -3264,6 +3323,20 @@ void AudacityProject::UnlockAllBlocks()
    }
 }
 
+#if 0
+// I added this to "fix" bug #334.  At that time, we were on wxWidgets 2.8.12 and
+// there was a window between the closing of the "Save" progress dialog and the
+// end of the actual save where the user was able to close the project window and
+// recursively enter the Save code (where they could inadvertently cause the issue
+// described in #334).
+//
+// When we converted to wx3, this "disabler" caused focus problems when returning
+// to the project after the save (bug #1172) because the focus and activate events
+// weren't being dispatched and the focus would get lost.
+//
+// After some testing, it looks like the window described above no longer exists,
+// so I've disabled the disabler.  However, I'm leaving it here in case we run
+// into the problem in the future.  (even though it can't be used as-is)
 class ProjectDisabler
 {
 public:
@@ -3279,12 +3352,14 @@ public:
 private:
    wxWindow *mWindow;
 };
+#endif
 
 bool AudacityProject::Save(bool overwrite /* = true */ ,
                            bool fromSaveAs /* = false */,
                            bool bWantSaveCompressed /*= false*/)
 {
-   ProjectDisabler disabler(this);
+   // See explanation above
+   // ProjectDisabler disabler(this);
 
    if (bWantSaveCompressed)
       wxASSERT(fromSaveAs);
@@ -3648,6 +3723,15 @@ void AudacityProject::AddImportedTracks(wxString fileName,
 
    PushState(wxString::Format(_("Imported '%s'"), fileName.c_str()),
              _("Import"));
+
+#if defined(__WXGTK__)
+   // See bug #1224
+   // The track panel hasn't we been fully created, so the OnZoomFit() will not give
+   // expected results due to a window width of zero.  Should be safe to yield here to
+   // allow the creattion to complete.  If this becomes a problem, it "might" be possible
+   // to queue a dummy event to trigger the OnZoomFit().
+   wxEventLoopBase::GetActive()->YieldFor(wxEVT_CATEGORY_UI | wxEVT_CATEGORY_USER_INPUT);
+#endif
 
    OnZoomFit();
 
@@ -4171,16 +4255,6 @@ ControlToolBar *AudacityProject::GetControlToolBar()
            NULL);
 }
 
-//JKC: same as above *except* this a virtual function that
-//can be called from the track panel callback.
-//It seems a little crazy doing this but TrackArtist
-//needs to get information about the tool bar state and
-//I don't currently see a cleaner way.
-ControlToolBar * AudacityProject::TP_GetControlToolBar()
-{
-   return GetControlToolBar();
-}
-
 ToolsToolBar * AudacityProject::TP_GetToolsToolBar()
 {
    return GetToolsToolBar();
@@ -4598,28 +4672,6 @@ void AudacityProject::RefreshTPTrack(Track* pTrk, bool refreshbacking /*= true*/
 }
 
 
-// TrackPanel callback methods
-
-int AudacityProject::TP_GetCurrentTool()
-{
-   //ControlToolBar might be NULL--especially on shutdown.
-   //Make sure it isn't and if it is, return a reasonable value
-   ToolsToolBar *ctb = GetToolsToolBar();
-   if (ctb)
-      return GetToolsToolBar()->GetCurrentTool();
-   else
-      return 0;
-}
-
-
-
-
-// TrackPanel callback method
-void AudacityProject::TP_OnPlayKey()
-{
-   OnPlayStop();
-}
-
 // TrackPanel callback method
 void AudacityProject::TP_PushState(wxString desc, wxString shortDesc,
                                    int flags)
@@ -4844,6 +4896,115 @@ void AudacityProject::SetSyncLock(bool flag)
       if (GetTrackPanel())
          GetTrackPanel()->Refresh(false);
    }
+}
+
+void AudacityProject::DoTrackMute(Track *t, bool exclusive)
+{
+   HandleTrackMute(t, exclusive);
+
+   // Update mixer board, too.
+   MixerBoard* pMixerBoard = this->GetMixerBoard();
+   if (pMixerBoard)
+   {
+      pMixerBoard->UpdateMute(); // Update for all tracks.
+      pMixerBoard->UpdateSolo(); // Update for all tracks.
+   }
+
+   mTrackPanel->UpdateAccessibility();
+   mTrackPanel->Refresh(false);
+}
+
+void AudacityProject::DoTrackSolo(Track *t, bool exclusive)
+{
+   HandleTrackSolo(t, exclusive);
+
+   // Update mixer board, too.
+   MixerBoard* pMixerBoard = this->GetMixerBoard();
+   if (pMixerBoard)
+   {
+      pMixerBoard->UpdateMute(); // Update for all tracks.
+      pMixerBoard->UpdateSolo(); // Update for all tracks.
+   }
+
+   mTrackPanel->UpdateAccessibility();
+   mTrackPanel->Refresh(false);
+}
+
+void AudacityProject::SetTrackGain(Track * track, LWSlider * slider)
+{
+   wxASSERT(track);
+   if (track->GetKind() != Track::Wave)
+      return;
+   float newValue = slider->Get();
+
+   WaveTrack *const link = static_cast<WaveTrack*>(mTracks->GetLink(track));
+   static_cast<WaveTrack*>(track)->SetGain(newValue);
+   if (link)
+      link->SetGain(newValue);
+
+   PushState(_("Adjusted gain"), _("Gain"), PUSH_CONSOLIDATE);
+
+   GetTrackPanel()->RefreshTrack(track);
+}
+
+void AudacityProject::SetTrackPan(Track * track, LWSlider * slider)
+{
+   wxASSERT(track);
+   if (track->GetKind() != Track::Wave)
+      return;
+   float newValue = slider->Get();
+
+   WaveTrack *const link = static_cast<WaveTrack*>(mTracks->GetLink(track));
+   static_cast<WaveTrack*>(track)->SetPan(newValue);
+   if (link)
+      link->SetPan(newValue);
+
+   PushState(_("Adjusted Pan"), _("Pan"), PUSH_CONSOLIDATE);
+
+   GetTrackPanel()->RefreshTrack(track);
+}
+
+/// Removes the specified track.  Called from HandleClosing.
+void AudacityProject::RemoveTrack(Track * toRemove)
+{
+   // If it was focused, reassign focus to the next or, if
+   // unavailable, the previous track.
+   if (mTrackPanel->GetFocusedTrack() == toRemove) {
+      Track *t = mTracks->GetNext(toRemove, true);
+      if (t == NULL) {
+         t = mTracks->GetPrev(toRemove, true);
+      }
+      mTrackPanel->SetFocusedTrack(t);  // It's okay if this is NULL
+   }
+
+   wxString name = toRemove->GetName();
+   Track *partner = toRemove->GetLink();
+
+   if (toRemove->GetKind() == Track::Wave)
+   {
+      // Update mixer board displayed tracks.
+      MixerBoard* pMixerBoard = this->GetMixerBoard();
+      if (pMixerBoard)
+         pMixerBoard->RemoveTrackCluster((WaveTrack*)toRemove); // Will remove partner shown in same cluster.
+   }
+
+   mTracks->Remove(toRemove, true);
+   if (partner) {
+      mTracks->Remove(partner, true);
+   }
+
+   if (mTracks->IsEmpty()) {
+      mTrackPanel->SetFocusedTrack(NULL);
+   }
+
+   PushState(
+      wxString::Format(_("Removed track '%s.'"),
+      name.c_str()),
+      _("Track Remove"));
+
+   TP_RedrawScrollbars();
+   HandleResize();
+   GetTrackPanel()->Refresh(false);
 }
 
 void AudacityProject::HandleTrackMute(Track *t, const bool exclusive)

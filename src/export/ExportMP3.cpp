@@ -1557,6 +1557,7 @@ public:
 
    ExportMP3();
    void Destroy();
+   bool CheckFileName(wxFileName & filename, int format);
 
    // Required
 
@@ -1597,6 +1598,23 @@ ExportMP3::ExportMP3()
 void ExportMP3::Destroy()
 {
    delete this;
+}
+
+bool ExportMP3::CheckFileName(wxFileName & WXUNUSED(filename), int WXUNUSED(format))
+{
+#ifndef DISABLE_DYNAMIC_LOADING_LAME
+   MP3Exporter exporter;
+
+   if (!exporter.LoadLibrary(wxTheApp->GetTopWindow(), MP3Exporter::Maybe)) {
+      wxMessageBox(_("Could not open MP3 encoding library!"));
+      gPrefs->Write(wxT("/MP3/MP3LibPath"), wxString(wxT("")));
+      gPrefs->Flush();
+
+      return false;
+   }
+#endif // DISABLE_DYNAMIC_LOADING_LAME
+
+   return true;
 }
 
 int ExportMP3::Export(AudacityProject *project,

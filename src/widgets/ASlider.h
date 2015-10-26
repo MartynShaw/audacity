@@ -13,6 +13,8 @@
 #ifndef __AUDACITY_SLIDER__
 #define __AUDACITY_SLIDER__
 
+#include "../Experimental.h"
+
 #include <wx/defs.h>
 #include <wx/window.h>
 #include <wx/dialog.h>
@@ -139,6 +141,8 @@ class LWSlider
    void SetSpeed(float speed);
 
    void Move(const wxPoint &newpos);
+
+   void AdjustSize(const wxSize & sz);
 
    void OnPaint(wxDC &dc);
    void OnSize(wxSizeEvent & event);

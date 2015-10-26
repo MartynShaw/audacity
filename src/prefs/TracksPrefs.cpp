@@ -28,6 +28,8 @@
 #include "../ShuttleGui.h"
 #include "../WaveTrack.h"
 
+#include "../Experimental.h"
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TracksPrefs::TracksPrefs(wxWindow * parent)
@@ -65,7 +67,7 @@ void TracksPrefs::Populate()
    mViewChoices.Add(_("Waveform (dB)"));
    mViewCodes.Add(int(WaveTrack::obsoleteWaveformDBDisplay));
 
-   mViewChoices.Add(_("Spectrum"));
+   mViewChoices.Add(_("Spectrogram"));
    mViewCodes.Add(WaveTrack::Spectrum);
 
    //------------------------- Main section --------------------

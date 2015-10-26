@@ -90,7 +90,7 @@ private:
 #ifdef EXPERIMENTAL_MIDI_OUT
    void DrawVelocitySlider(wxDC * dc, NoteTrack *t, wxRect rect) const ;
 #endif
-   void DrawSliders(wxDC * dc, WaveTrack *t, wxRect rect) const;
+   void DrawSliders(wxDC * dc, WaveTrack *t, wxRect rect, bool captured) const;
 
    // Draw the minimize button *and* the sync-lock track icon, if necessary.
    void DrawMinimize(wxDC * dc, const wxRect & rect, Track * t, bool down) const;
@@ -104,12 +104,15 @@ private:
    void GetMinimizeRect(const wxRect & rect, wxRect &dest) const;
    void GetSyncLockIconRect(const wxRect & rect, wxRect &dest) const;
 
-   LWSlider * GainSlider(WaveTrack *t) const;
-   LWSlider * PanSlider(WaveTrack *t) const;
+public:
+   LWSlider * GainSlider(WaveTrack *t, bool captured = false) const;
+   LWSlider * PanSlider(WaveTrack *t, bool captured = false) const;
 
 private:
    TrackPanel * pParent;
    wxFont mFont;
+   LWSlider *mGainCaptured;
+   LWSlider *mPanCaptured;
    LWSlider *mGain;
    LWSlider *mPan;
 
@@ -195,28 +198,11 @@ class AUDACITY_DLL_API TrackPanel:public wxPanel {
    virtual void OnLastTrack();
    virtual void OnToggle();
 
-   virtual void OnCursorLeft(bool shift, bool ctrl, bool keyup = false);
-   virtual void OnCursorRight(bool shift, bool ctrl, bool keyup = false);
-   virtual void OnCursorMove(bool forward, bool jump, bool longjump);
-   virtual void OnBoundaryMove(bool left, bool boundaryContract);
    virtual void ScrollIntoView(double pos);
    virtual void ScrollIntoView(int x);
 
-   virtual void OnTrackPan();
-   virtual void OnTrackPanLeft();
-   virtual void OnTrackPanRight();
-   virtual void OnTrackGain();
-   virtual void OnTrackGainDec();
-   virtual void OnTrackGainInc();
    virtual void OnTrackMenu(Track *t = NULL);
    virtual void OnVRulerMenu(Track *t, wxMouseEvent *pEvent = NULL);
-   virtual void OnTrackMute(bool shiftdown, Track *t = NULL);
-   virtual void OnTrackSolo(bool shiftdown, Track *t = NULL);
-   virtual void OnTrackClose();
-   virtual void OnTrackMoveUp();
-   virtual void OnTrackMoveDown();
-   virtual void OnTrackMoveTop();
-   virtual void OnTrackMoveBottom();
    virtual Track * GetFirstSelectedTrack();
    virtual bool IsMouseCaptured();
 
@@ -351,12 +337,8 @@ protected:
                         Track *pTrack);
    virtual void UpdateSelectionDisplay();
 
-   // Handle small cursor and play head movements
-   void SeekLeftOrRight
-      (bool left, bool shift, bool ctrl, bool keyup,
-       int snapToTime, bool mayAccelerateQuiet, bool mayAccelerateAudio,
-       double quietSeekStepPositive, bool quietStepIsPixels,
-       double audioSeekStepPositive, bool audioStepIsPixels);
+public:
+   virtual void UpdateAccessibility();
 
 #ifdef EXPERIMENTAL_SPECTRAL_EDITING
 public:
@@ -376,9 +358,6 @@ protected:
 
    virtual void SelectTracksByLabel( LabelTrack *t );
    virtual void SelectTrackLength(Track *t);
-
-   // Helper for moving by keyboard with snap-to-grid enabled
-   virtual double GridMove(double t, int minPix);
 
    // AS: Cursor handling
    virtual bool SetCursorByActivity( );
@@ -437,6 +416,8 @@ protected:
 
    // MM: Handle mouse wheel rotation
    virtual void HandleWheelRotation(wxMouseEvent & event);
+   virtual void HandleWheelRotationInVRuler
+      (wxMouseEvent &event, Track *pTrack, const wxRect &rect);
 
    // Handle resizing.
    virtual void HandleResizeClick(wxMouseEvent & event);
@@ -480,14 +461,12 @@ protected:
                             int flags = PUSH_AUTOSAVE);
    virtual void MakeParentModifyState(bool bWantsAutoSave);    // if true, writes auto-save file. Should set only if you really want the state change restored after
                                                                // a crash, as it can take many seconds for large (eg. 10 track-hours) projects
-   virtual void MakeParentResize();
 
    virtual void OnSetName(wxCommandEvent &event);
 
    virtual void OnSetFont(wxCommandEvent &event);
 
    virtual void OnMoveTrack    (wxCommandEvent &event);
-   virtual void MoveTrack(Track* target, int eventId);
    virtual void OnChangeOctave (wxCommandEvent &event);
    virtual void OnChannelChange(wxCommandEvent &event);
    virtual void OnSpectrogramSettings(wxCommandEvent &event);
@@ -516,11 +495,6 @@ protected:
    virtual void OnSplitStereoMono(wxCommandEvent &event);
    virtual void SplitStereo(bool stereo);
    virtual void OnMergeStereo(wxCommandEvent &event);
-
-   virtual void SetTrackPan(Track * t, LWSlider * s);
-   virtual void SetTrackGain(Track * t, LWSlider * s);
-
-   virtual void RemoveTrack(Track * toRemove);
 
    // Find track info by coordinate
    virtual Track *FindTrack(int mouseX, int mouseY, bool label, bool link,
@@ -564,10 +538,12 @@ protected:
    virtual void DrawBordersAroundTrack(Track *t, wxDC* dc, const wxRect & rect, const int labelw, const int vrul);
    virtual void DrawOutsideOfTrack    (Track *t, wxDC* dc, const wxRect & rect);
 
+public:
    // Erase and redraw things like the cursor, cheaply and directly to the
    // client area, without full refresh.
    virtual void DrawOverlays(bool repaint);
 
+protected:
    virtual int IdOfRate( int rate );
    virtual int IdOfFormat( int format );
 
@@ -586,16 +562,16 @@ protected:
    virtual bool MoveClipToTrack(WaveClip *clip, WaveTrack* dst);
 
    TrackInfo mTrackInfo;
+ public:
+    TrackInfo *GetTrackInfo() { return &mTrackInfo; }
 
+protected:
    TrackPanelListener *mListener;
 
    TrackList *mTracks;
    ViewInfo *mViewInfo;
 
    AdornedRulerPanel *mRuler;
-
-   double mSeekShort;
-   double mSeekLong;
 
    TrackArtist *mTrackArtist;
 
@@ -634,8 +610,6 @@ protected:
    bool mRefreshBacking;
    int mPrevWidth;
    int mPrevHeight;
-
-   wxLongLong mLastSelectionAdjustment;
 
    SelectedRegion mInitialSelection;
    // Extra indirection to avoid the stupid MSW compiler warnings!  Rrrr!
@@ -808,7 +782,6 @@ protected:
    enum MouseCaptureEnum mMouseCapture;
    virtual void SetCapturedTrack( Track * t, enum MouseCaptureEnum MouseCapture=IsUncaptured );
 
-   bool mScrollBeyondZero;
    bool mAdjustSelectionEdges;
    bool mSlideUpDownOnly;
    bool mCircularTrackNavigation;
@@ -829,7 +802,7 @@ protected:
    bool mScrubSeekPress;
 
    wxRect mLastScrubRect, mNextScrubRect;
-   wxString mScrubSpeedText;
+   wxString mLastScrubSpeedText, mNextScrubSpeedText;
 #endif
 
 #ifdef EXPERIMENTAL_SCRUBBING_SMOOTH_SCROLL

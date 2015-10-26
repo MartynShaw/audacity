@@ -414,8 +414,11 @@ void Meter::OnErase(wxEraseEvent & WXUNUSED(event))
 
 void Meter::OnPaint(wxPaintEvent & WXUNUSED(event))
 {
-//   wxDC *paintDC = wxAutoBufferedPaintDCFactory(this);
+#if defined(__WXMAC__)
    wxPaintDC *paintDC = new wxPaintDC(this);
+#else
+   wxDC *paintDC = wxAutoBufferedPaintDCFactory(this);
+#endif
    wxDC & destDC = *paintDC;
 
    if (mLayoutValid == false)
@@ -959,7 +962,7 @@ void Meter::OnMeterUpdate(wxTimerEvent & WXUNUSED(event))
 {
    MeterUpdateMsg msg;
    int numChanges = 0;
-#ifdef AUTOMATED_INPUT_LEVEL_ADJUSTMENT
+#ifdef EXPERIMENTAL_AUTOMATED_INPUT_LEVEL_ADJUSTMENT
    double maxPeak = 0.0;
    bool discarded = false;
 #endif
@@ -1027,7 +1030,7 @@ void Meter::OnMeterUpdate(wxTimerEvent & WXUNUSED(event))
          }
 
          mBar[j].tailPeakCount = msg.tailPeakCount[j];
-#ifdef AUTOMATED_INPUT_LEVEL_ADJUSTMENT
+#ifdef EXPERIMENTAL_AUTOMATED_INPUT_LEVEL_ADJUSTMENT
          if (mT > gAudioIO->AILAGetLastDecisionTime()) {
             discarded = false;
             maxPeak = msg.peak[j] > maxPeak ? msg.peak[j] : maxPeak;
@@ -1042,7 +1045,7 @@ void Meter::OnMeterUpdate(wxTimerEvent & WXUNUSED(event))
    } // while
 
    if (numChanges > 0) {
-      #ifdef AUTOMATED_INPUT_LEVEL_ADJUSTMENT
+      #ifdef EXPERIMENTAL_AUTOMATED_INPUT_LEVEL_ADJUSTMENT
          if (gAudioIO->AILAIsActive() && mIsInput && !discarded) {
             gAudioIO->AILAProcess(maxPeak);
             putchar('\n');
@@ -1491,7 +1494,7 @@ void Meter::RepaintBarsNow()
       // Invalidate the bars so they get redrawn
       for (int i = 0; i < mNumBars; i++)
       {
-         Refresh(false, &mBar[i].r);
+         Refresh(false);
       }
 
       // Immediate redraw (using wxPaintDC)
